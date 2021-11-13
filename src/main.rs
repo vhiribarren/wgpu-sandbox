@@ -1,6 +1,5 @@
 mod webgpu;
 
-use std::future::Future;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
@@ -12,17 +11,37 @@ use winit::error::OsError;
 const WEBAPP_CANVAS_ID: &str = "target";
 
 fn init_log() {
+    let mut builder = fern::Dispatch::new();
+    let level_formatter;
     #[cfg(target_arch = "wasm32")]
     {
-        console_log::init_with_level(log::Level::Trace).unwrap();
+        level_formatter = |level| level;
+        builder = builder.chain(fern::Output::call(console_log::log));
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
-        use env_logger::Builder;
-        Builder::new()
-            .filter_module(module_path!(), log::LevelFilter::max())
-            .init();
+        use fern::colors::{Color, ColoredLevelConfig};
+        let colors = ColoredLevelConfig::new()
+            .info(Color::Blue)
+            .debug(Color::Green);
+        level_formatter = move |level| colors.color(level);
+        builder = builder.chain(std::io::stdout());
     }
+    builder
+        .level(log::LevelFilter::Info)
+        .level_for(module_path!(), log::LevelFilter::Debug)
+        .format(move |out, message, record| {
+            out.finish(format_args!(
+                "{}[{}][{}] {}",
+                chrono::Local::now().format("[%H:%M:%S]"),
+                level_formatter(record.level()),
+                //colors.color(record.level()),
+                record.target(),
+                message
+            ))
+        })
+        .apply()
+        .unwrap();
 }
 
 fn create_window<T>(event_loop: &EventLoop<T>) -> Result<Window, OsError> {
