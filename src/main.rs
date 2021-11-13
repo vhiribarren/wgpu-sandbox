@@ -1,5 +1,6 @@
 mod webgpu;
 
+use std::future::Future;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
@@ -41,12 +42,11 @@ fn init_window<T>(event_loop: &EventLoop<T>) -> Result<Window, OsError> {
     WindowBuilder::default().build(event_loop)
 }
 
-fn main() {
-    init_log();
-    info!("Init app");
+async fn async_start() {
     let event_loop = EventLoop::new();
     let window = init_window(&event_loop).unwrap();
-    pollster::block_on(webgpu::WebGPU::new(&window)).unwrap();
+    webgpu::WebGPU::new(&window).await.unwrap();
+
     event_loop.run(|event, _target, control_flow| match event {
         Event::WindowEvent {
             event: WindowEvent::CloseRequested,
@@ -65,4 +65,19 @@ fn main() {
         Event::RedrawRequested(_) => {}
         _ => {}
     });
+}
+
+fn main() {
+    init_log();
+    info!("Init app");
+    let start_future = async_start();
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        pollster::block_on(start_future);
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    {
+        wasm_bindgen_futures::spawn_local(start_future);
+    }
 }
