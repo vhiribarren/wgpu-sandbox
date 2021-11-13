@@ -45,7 +45,8 @@ fn main() {
     init_log();
     info!("Init app");
     let event_loop = EventLoop::new();
-    let _window = init_window(&event_loop).unwrap();
+    let window = init_window(&event_loop).unwrap();
+    pollster::block_on(webgpu::WebGPU::new(&window)).unwrap();
     event_loop.run(|event, _target, control_flow| match event {
         Event::WindowEvent {
             event: WindowEvent::CloseRequested,
