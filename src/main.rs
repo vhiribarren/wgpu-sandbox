@@ -32,11 +32,12 @@ fn init_log() {
         .level_for(module_path!(), log::LevelFilter::Debug)
         .format(move |out, message, record| {
             out.finish(format_args!(
-                "{}[{}][{}] {}",
+                "{}[{}][{}:{}] {}",
                 chrono::Local::now().format("[%H:%M:%S]"),
                 level_formatter(record.level()),
                 //colors.color(record.level()),
                 record.target(),
+                record.line().unwrap_or_default(),
                 message
             ))
         })
