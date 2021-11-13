@@ -11,42 +11,43 @@ use winit::error::OsError;
 #[cfg(target_arch = "wasm32")]
 const WEBAPP_CANVAS_ID: &str = "target";
 
-#[cfg(target_arch = "wasm32")]
 fn init_log() {
-    console_log::init_with_level(log::Level::Trace).unwrap();
+    #[cfg(target_arch = "wasm32")]
+    {
+        console_log::init_with_level(log::Level::Trace).unwrap();
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        use env_logger::Builder;
+        Builder::new()
+            .filter_module(module_path!(), log::LevelFilter::max())
+            .init();
+    }
 }
 
-#[cfg(target_arch = "wasm32")]
-fn init_window<T>(event_loop: &EventLoop<T>) -> Result<Window, OsError> {
-    use wasm_bindgen::JsCast;
-    use winit::platform::web::WindowBuilderExtWebSys;
-    let dom_window = web_sys::window().unwrap();
-    let dom_document = dom_window.document().unwrap();
-    let dom_canvas = dom_document.get_element_by_id(WEBAPP_CANVAS_ID).unwrap();
-    let canvas = dom_canvas.dyn_into::<web_sys::HtmlCanvasElement>().ok();
-    WindowBuilder::default()
-        .with_canvas(canvas)
-        .build(event_loop)
+fn create_window<T>(event_loop: &EventLoop<T>) -> Result<Window, OsError> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        use wasm_bindgen::JsCast;
+        use winit::platform::web::WindowBuilderExtWebSys;
+        let dom_window = web_sys::window().unwrap();
+        let dom_document = dom_window.document().unwrap();
+        let dom_canvas = dom_document.get_element_by_id(WEBAPP_CANVAS_ID).unwrap();
+        let canvas = dom_canvas.dyn_into::<web_sys::HtmlCanvasElement>().ok();
+        WindowBuilder::default()
+            .with_canvas(canvas)
+            .build(event_loop)
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        WindowBuilder::default().build(event_loop)
+    }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-fn init_log() {
-    use env_logger::Builder;
-    Builder::new()
-        .filter_module(module_path!(), log::LevelFilter::max())
-        .init();
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn init_window<T>(event_loop: &EventLoop<T>) -> Result<Window, OsError> {
-    WindowBuilder::default().build(event_loop)
-}
-
-async fn async_start() {
+async fn async_main() {
     let event_loop = EventLoop::new();
-    let window = init_window(&event_loop).unwrap();
+    let window = create_window(&event_loop).unwrap();
     webgpu::WebGPU::new(&window).await.unwrap();
-
     event_loop.run(|event, _target, control_flow| match event {
         Event::WindowEvent {
             event: WindowEvent::CloseRequested,
@@ -70,14 +71,13 @@ async fn async_start() {
 fn main() {
     init_log();
     info!("Init app");
-    let start_future = async_start();
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        pollster::block_on(start_future);
-    }
-
+    let main_future = async_main();
     #[cfg(target_arch = "wasm32")]
     {
-        wasm_bindgen_futures::spawn_local(start_future);
+        wasm_bindgen_futures::spawn_local(main_future);
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        pollster::block_on(main_future);
     }
 }
