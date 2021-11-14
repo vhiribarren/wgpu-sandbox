@@ -7,6 +7,7 @@ use winit::window::{Window, WindowBuilder};
 use log::{debug, info};
 use winit::error::OsError;
 
+const GLOBAL_LOG_FILTER: log::LevelFilter = log::LevelFilter::Info;
 #[cfg(target_arch = "wasm32")]
 const WEBAPP_CANVAS_ID: &str = "target";
 
@@ -28,14 +29,13 @@ fn init_log() {
         builder = builder.chain(std::io::stdout());
     }
     builder
-        .level(log::LevelFilter::Info)
+        .level(GLOBAL_LOG_FILTER)
         .level_for(module_path!(), log::LevelFilter::Debug)
         .format(move |out, message, record| {
             out.finish(format_args!(
                 "{}[{}][{}:{}] {}",
                 chrono::Local::now().format("[%H:%M:%S]"),
                 level_formatter(record.level()),
-                //colors.color(record.level()),
                 record.target(),
                 record.line().unwrap_or_default(),
                 message
@@ -67,8 +67,15 @@ fn create_window<T>(event_loop: &EventLoop<T>) -> Result<Window, OsError> {
 async fn async_main() {
     let event_loop = EventLoop::new();
     let window = create_window(&event_loop).unwrap();
-    webgpu::WebGPU::new(&window).await.unwrap();
-    event_loop.run(|event, _target, control_flow| match event {
+    dbg!(window.inner_size());
+    let wepgpu = webgpu::WebGPU::new(
+        &window,
+        window.inner_size().width,
+        window.inner_size().height,
+    )
+    .await
+    .unwrap();
+    event_loop.run(move |event, _target, control_flow| match event {
         Event::WindowEvent {
             event: WindowEvent::CloseRequested,
             ..
@@ -82,8 +89,12 @@ async fn async_main() {
         } => {
             debug!("Window resized");
         }
-        Event::MainEventsCleared => {}
-        Event::RedrawRequested(_) => {}
+        Event::MainEventsCleared => {
+            //window.request_redraw();
+        }
+        Event::RedrawRequested(_) => {
+            wepgpu.render().unwrap();
+        }
         _ => {}
     });
 }
