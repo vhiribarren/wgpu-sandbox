@@ -34,7 +34,7 @@ impl WebGPU {
                 &DeviceDescriptor {
                     label: Some("Device Descriptor"),
                     features: wgpu::Features::empty(),
-                    limits: Default::default(),
+                    limits: wgpu::Limits::downlevel_webgl2_defaults(),
                 },
                 None,
             )
