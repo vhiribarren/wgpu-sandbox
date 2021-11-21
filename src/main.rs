@@ -1,4 +1,4 @@
-mod webgpu;
+mod draw_context;
 
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
@@ -68,7 +68,7 @@ async fn async_main() {
     let event_loop = EventLoop::new();
     let window = create_window(&event_loop).unwrap();
     dbg!(window.inner_size());
-    let wepgpu = webgpu::WebGPU::new(
+    let draw_context = draw_context::DrawContext::new(
         &window,
         window.inner_size().width,
         window.inner_size().height,
@@ -93,7 +93,7 @@ async fn async_main() {
             //window.request_redraw();
         }
         Event::RedrawRequested(_) => {
-            wepgpu.render().unwrap();
+            draw_context.render().unwrap();
         }
         _ => {}
     });

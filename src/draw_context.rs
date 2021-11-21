@@ -4,19 +4,19 @@ use wgpu::{
     CommandEncoderDescriptor, DeviceDescriptor, RequestAdapterOptions,
 };
 
-pub struct WebGPU {
+pub struct DrawContext {
     adapter: wgpu::Adapter,
     surface: wgpu::Surface,
     queue: wgpu::Queue,
     device: wgpu::Device,
 }
 
-impl WebGPU {
+impl DrawContext {
     pub async fn new(
         window_handler: &impl raw_window_handle::HasRawWindowHandle,
         width: u32,
         height: u32,
-    ) -> anyhow::Result<WebGPU> {
+    ) -> anyhow::Result<DrawContext> {
         let instance = wgpu::Instance::new(wgpu::Backends::all());
         let surface = unsafe { instance.create_surface(window_handler) };
         let adapter = instance
@@ -47,7 +47,7 @@ impl WebGPU {
             present_mode: wgpu::PresentMode::Fifo,
         };
         surface.configure(&device, &config);
-        Ok(WebGPU {
+        Ok(DrawContext {
             adapter,
             surface,
             device,
@@ -60,6 +60,12 @@ impl WebGPU {
         let view = displayed_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
+        self.render_object(&view);
+        displayed_texture.present();
+        Ok(())
+    }
+
+    fn render_object(&self, view: &wgpu::TextureView) {
         let mut encoder = self
             .device
             .create_command_encoder(&CommandEncoderDescriptor {
@@ -84,7 +90,6 @@ impl WebGPU {
         });
         let command_buffers = std::iter::once(encoder.finish());
         self.queue.submit(command_buffers);
-        displayed_texture.present();
-        Ok(())
     }
+
 }
