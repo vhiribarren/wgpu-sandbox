@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.45"
+bytemuck = {version = "1.7.2", features = [ "derive" ] }
 chrono = { version ="0.4.19", features = ["wasmbind"] }
 fern = { version = "0.6.0", features = ["colored"] }
 log = "0.4.14"
