@@ -1,15 +1,21 @@
 mod draw_context;
+mod triangle;
 
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
 
+use crate::draw_context::Drawable;
 use log::{debug, info};
 use winit::error::OsError;
 
 const GLOBAL_LOG_FILTER: log::LevelFilter = log::LevelFilter::Info;
 #[cfg(target_arch = "wasm32")]
 const WEBAPP_CANVAS_ID: &str = "target";
+
+const DEFAULT_SHADER: &str = include_str!("./shaders/default.wgsl");
+const DEFAULT_SHADER_MAIN_FRG: &str = "frg_main";
+const DEFAULT_SHADER_MAIN_VTX: &str = "vtx_main";
 
 fn init_log() {
     let mut builder = fern::Dispatch::new();
@@ -75,6 +81,31 @@ async fn async_main() {
     )
     .await
     .unwrap();
+    let triangle = {
+        let default_shader_module =
+            draw_context
+                .device
+                .create_shader_module(&wgpu::ShaderModuleDescriptor {
+                    label: Some("Fragment Shader"),
+                    source: wgpu::ShaderSource::Wgsl(DEFAULT_SHADER.into()),
+                });
+        let vertex_state = wgpu::VertexState {
+            module: &default_shader_module,
+            entry_point: DEFAULT_SHADER_MAIN_VTX,
+            buffers: &[draw_context.vertex_buffer_layout.clone()],
+        };
+        let fragment_state = wgpu::FragmentState {
+            module: &default_shader_module,
+            entry_point: DEFAULT_SHADER_MAIN_FRG,
+            targets: &[wgpu::ColorTargetState {
+                format: draw_context.config.format,
+                blend: Some(wgpu::BlendState::REPLACE),
+                write_mask: wgpu::ColorWrites::ALL,
+            }],
+        };
+        triangle::Triangle::init(&draw_context, vertex_state, fragment_state)
+    };
+    let objects: Vec<Box<dyn Drawable>> = vec![Box::new(triangle)];
     event_loop.run(move |event, _target, control_flow| match event {
         Event::WindowEvent {
             event: WindowEvent::CloseRequested,
@@ -93,7 +124,7 @@ async fn async_main() {
             //window.request_redraw();
         }
         Event::RedrawRequested(_) => {
-            draw_context.render().unwrap();
+            draw_context.render_objects(objects.as_slice()).unwrap();
         }
         _ => {}
     });
