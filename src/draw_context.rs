@@ -2,6 +2,23 @@ use anyhow::anyhow;
 use log::debug;
 
 #[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct UniformMatrix4(pub [[f32; 4]; 4]);
+
+impl UniformMatrix4 {
+    pub fn identity() -> Self {
+        use cgmath::SquareMatrix;
+        Self(cgmath::Matrix4::identity().into())
+    }
+}
+
+impl AsRef<[u8]> for UniformMatrix4 {
+    fn as_ref(&self) -> &[u8] {
+        bytemuck::cast_slice(&self.0)
+    }
+}
+
+#[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Vertex {
     pub position: [f32; 3],
@@ -33,15 +50,18 @@ pub trait Drawable {
     fn render_pipeline(&self) -> &wgpu::RenderPipeline;
     fn vertex_buffer(&self) -> &wgpu::Buffer;
     fn vertex_count(&self) -> usize;
+    fn transform_bind_group(&self) -> &wgpu::BindGroup;
 }
 
 pub struct DrawContext<'a> {
     _adapter: wgpu::Adapter,
     surface: wgpu::Surface,
-    queue: wgpu::Queue,
+    pub queue: wgpu::Queue,
+    pub transform_bind_group_layout: wgpu::BindGroupLayout,
     pub device: wgpu::Device,
     pub vertex_buffer_layout: wgpu::VertexBufferLayout<'a>,
     pub config: wgpu::SurfaceConfiguration,
+    pub pipeline_layout: wgpu::PipelineLayout,
 }
 
 impl DrawContext<'_> {
@@ -81,13 +101,34 @@ impl DrawContext<'_> {
         };
         surface.configure(&device, &config);
         let vertex_buffer_layout = Vertex::vertex_buffer_layout();
+        let transform_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Transform bind group"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Pipeline Layout"),
+            bind_group_layouts: &[&transform_bind_group_layout],
+            push_constant_ranges: &[],
+        });
         Ok(DrawContext {
             _adapter: adapter,
             surface,
             device,
             queue,
             config,
+            transform_bind_group_layout,
             vertex_buffer_layout,
+            pipeline_layout,
         })
     }
 
@@ -121,6 +162,7 @@ impl DrawContext<'_> {
         });
         for drawable in drawables {
             render_pass.set_pipeline(drawable.render_pipeline());
+            render_pass.set_bind_group(0, drawable.transform_bind_group(), &[]);
             render_pass.set_vertex_buffer(0, drawable.vertex_buffer().slice(..));
             render_pass.draw(0..(drawable.vertex_count() as u32), 0..1);
         }

@@ -1,4 +1,5 @@
 mod draw_context;
+mod scenarios;
 mod triangle;
 
 use winit::event::{Event, WindowEvent};
@@ -81,7 +82,7 @@ async fn async_main() {
     )
     .await
     .unwrap();
-    let triangle = {
+    let mut triangle = {
         let default_shader_module =
             draw_context
                 .device
@@ -105,6 +106,10 @@ async fn async_main() {
         };
         triangle::Triangle::init(&draw_context, vertex_state, fragment_state)
     };
+    triangle.set_transform(
+        &draw_context,
+        cgmath::Matrix4::from_angle_z(cgmath::Deg(45.0)),
+    );
     let objects: Vec<Box<dyn Drawable>> = vec![Box::new(triangle)];
     event_loop.run(move |event, _target, control_flow| match event {
         Event::WindowEvent {

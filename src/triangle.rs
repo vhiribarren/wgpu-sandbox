@@ -1,4 +1,5 @@
-use crate::draw_context::{DrawContext, Drawable, Vertex};
+use crate::draw_context::{DrawContext, Drawable, UniformMatrix4, Vertex};
+use cgmath::{Matrix4, SquareMatrix};
 use wgpu::util::DeviceExt;
 use wgpu::Buffer;
 
@@ -20,6 +21,9 @@ const TRIANGLE: [Vertex; 3] = [
 pub struct Triangle {
     render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
+    transform: Matrix4<f32>,
+    transform_buffer: wgpu::Buffer,
+    transform_bind_group: wgpu::BindGroup,
 }
 
 impl Triangle {
@@ -40,7 +44,7 @@ impl Triangle {
                 .device
                 .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                     label: Some("Render Pipeline"),
-                    layout: None,
+                    layout: Some(&context.pipeline_layout),
                     vertex: vertex_state,
                     fragment: Some(fragment_state),
                     primitive: wgpu::PrimitiveState {
@@ -55,10 +59,50 @@ impl Triangle {
                     depth_stencil: None,
                     multisample: Default::default(),
                 });
+        let transform = Matrix4::identity();
+        let transform_buffer =
+            context
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Camera Buffer"),
+                    contents: crate::draw_context::UniformMatrix4::identity().as_ref(),
+                    usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
+                });
+        let transform_bind_group = context
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Transform bind group"),
+                layout: &context.transform_bind_group_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: transform_buffer.as_entire_binding(),
+                }],
+            });
         Triangle {
             render_pipeline,
             vertex_buffer,
+            transform,
+            transform_buffer,
+            transform_bind_group,
         }
+    }
+
+    pub fn set_transform(&mut self, context: &DrawContext, transform: Matrix4<f32>) {
+        self.transform = transform;
+        let transform_uniform: UniformMatrix4 = UniformMatrix4(transform.into());
+        context.queue.write_buffer(
+            &self.transform_buffer,
+            0 as wgpu::BufferAddress,
+            transform_uniform.as_ref(),
+        );
+        /*
+        self.transform_buffer
+            .slice(..)
+            .get_mapped_range_mut()
+            .copy_from_slice(transform_uniform.as_ref());
+        self.transform_buffer.unmap();
+
+         */
     }
 }
 
@@ -69,8 +113,10 @@ impl Drawable for Triangle {
     fn vertex_buffer(&self) -> &Buffer {
         &self.vertex_buffer
     }
-
     fn vertex_count(&self) -> usize {
         TRIANGLE.len()
+    }
+    fn transform_bind_group(&self) -> &wgpu::BindGroup {
+        &self.transform_bind_group
     }
 }

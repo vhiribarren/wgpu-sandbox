@@ -9,11 +9,23 @@ struct FragmentInput {
 };
 
 
+// [[group(0), binding(0)]]
+// var<uniform> transform: mat4x4<f32>;
+
+
+[[block]]
+struct TransformUniform {
+    mat: mat4x4<f32>;
+};
+[[group(0), binding(0)]]
+var<uniform> transform: TransformUniform;
+
+
 [[stage(vertex)]]
 fn vtx_main(vtx_in: VertexInput) -> FragmentInput {
     var out: FragmentInput;
     out.color = vtx_in.color;
-    out.position = vec4<f32>(vtx_in.position, 1.0);
+    out.position = transform.mat * vec4<f32>(vtx_in.position, 1.0);
     return out;
 }
 
