@@ -2,11 +2,14 @@ mod draw_context;
 mod scenarios;
 mod triangle;
 
+use std::time::Instant;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
 
 use crate::draw_context::Drawable;
+use crate::scenarios::simple_triangle_rotation::SimpleTriangleRotation;
+use crate::scenarios::{Scenario, UpdateInterval};
 use log::{debug, info};
 use winit::error::OsError;
 
@@ -17,6 +20,8 @@ const WEBAPP_CANVAS_ID: &str = "target";
 const DEFAULT_SHADER: &str = include_str!("./shaders/default.wgsl");
 const DEFAULT_SHADER_MAIN_FRG: &str = "frg_main";
 const DEFAULT_SHADER_MAIN_VTX: &str = "vtx_main";
+
+const TARGET_FPS: f32 = 1.0 / 60.0;
 
 fn init_log() {
     let mut builder = fern::Dispatch::new();
@@ -82,7 +87,7 @@ async fn async_main() {
     )
     .await
     .unwrap();
-    let mut triangle = {
+    let triangle = {
         let default_shader_module =
             draw_context
                 .device
@@ -106,32 +111,55 @@ async fn async_main() {
         };
         triangle::Triangle::init(&draw_context, vertex_state, fragment_state)
     };
-    triangle.set_transform(
-        &draw_context,
-        cgmath::Matrix4::from_angle_z(cgmath::Deg(45.0)),
-    );
-    let objects: Vec<Box<dyn Drawable>> = vec![Box::new(triangle)];
-    event_loop.run(move |event, _target, control_flow| match event {
-        Event::WindowEvent {
-            event: WindowEvent::CloseRequested,
-            ..
-        } => {
-            debug!("Closing app");
-            *control_flow = ControlFlow::Exit;
+    let mut simple_triangle_rotation = SimpleTriangleRotation::new(triangle);
+
+    let scenario_start = Instant::now();
+    let mut last_update_instant = scenario_start.clone();
+    let mut last_draw_instant = scenario_start.clone();
+
+    event_loop.run(move |event, _target, control_flow| {
+        *control_flow = ControlFlow::Poll;
+        match event {
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                ..
+            } => {
+                debug!("Closing app");
+                *control_flow = ControlFlow::Exit;
+            }
+            Event::WindowEvent {
+                event: WindowEvent::Resized(_),
+                ..
+            } => {
+                debug!("Window resized");
+            }
+            Event::MainEventsCleared => {
+                let current_instant = Instant::now();
+                let update_delta = current_instant.duration_since(last_update_instant);
+                last_update_instant = current_instant;
+                simple_triangle_rotation.update(
+                    &draw_context,
+                    &UpdateInterval {
+                        scenario_start,
+                        update_delta,
+                    },
+                );
+                if current_instant
+                    .duration_since(last_draw_instant)
+                    .as_secs_f32()
+                    >= TARGET_FPS
+                {
+                    window.request_redraw();
+                    last_draw_instant = current_instant;
+                }
+            }
+            Event::RedrawRequested(_) => {
+                draw_context
+                    .render_object(simple_triangle_rotation.drawables())
+                    .unwrap();
+            }
+            _ => {}
         }
-        Event::WindowEvent {
-            event: WindowEvent::Resized(_),
-            ..
-        } => {
-            debug!("Window resized");
-        }
-        Event::MainEventsCleared => {
-            //window.request_redraw();
-        }
-        Event::RedrawRequested(_) => {
-            draw_context.render_objects(objects.as_slice()).unwrap();
-        }
-        _ => {}
     });
 }
 

@@ -1,5 +1,7 @@
-mod simple_triangle_rotation;
+pub mod simple_triangle_rotation;
 
+use crate::draw_context::DrawContext;
+use crate::Drawable;
 use std::time::{Duration, Instant};
 
 pub struct UpdateInterval {
@@ -8,6 +10,6 @@ pub struct UpdateInterval {
 }
 
 pub trait Scenario {
-    fn update(&mut self, update_interval: &UpdateInterval);
-    fn render(&self);
+    fn update(&mut self, context: &DrawContext, update_interval: &UpdateInterval);
+    fn drawables(&self) -> &dyn Drawable;
 }

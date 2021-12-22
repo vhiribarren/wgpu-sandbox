@@ -95,14 +95,6 @@ impl Triangle {
             0 as wgpu::BufferAddress,
             transform_uniform.as_ref(),
         );
-        /*
-        self.transform_buffer
-            .slice(..)
-            .get_mapped_range_mut()
-            .copy_from_slice(transform_uniform.as_ref());
-        self.transform_buffer.unmap();
-
-         */
     }
 }
 

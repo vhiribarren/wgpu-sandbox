@@ -1,4 +1,5 @@
 use anyhow::anyhow;
+use cgmath::Matrix4;
 use log::debug;
 
 #[repr(C)]
@@ -166,6 +167,47 @@ impl DrawContext<'_> {
             render_pass.set_vertex_buffer(0, drawable.vertex_buffer().slice(..));
             render_pass.draw(0..(drawable.vertex_count() as u32), 0..1);
         }
+        drop(render_pass);
+        let command_buffers = std::iter::once(encoder.finish());
+        self.queue.submit(command_buffers);
+        displayed_texture.present();
+        Ok(())
+    }
+
+    pub fn render_object(&self, drawable: &dyn Drawable) -> anyhow::Result<()> {
+        let displayed_texture = self.surface.get_current_texture()?;
+        let view = displayed_texture
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Command Encoder"),
+            });
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Render pass"),
+            color_attachments: &[wgpu::RenderPassColorAttachment {
+                view: &view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                        r: 1.0,
+                        g: 0.0,
+                        b: 0.0,
+                        a: 1.0,
+                    }),
+                    store: true,
+                },
+            }],
+            depth_stencil_attachment: None,
+        });
+
+        render_pass.set_pipeline(drawable.render_pipeline());
+        render_pass.set_bind_group(0, drawable.transform_bind_group(), &[]);
+        render_pass.set_vertex_buffer(0, drawable.vertex_buffer().slice(..));
+        render_pass.draw(0..(drawable.vertex_count() as u32), 0..1);
+
         drop(render_pass);
         let command_buffers = std::iter::once(encoder.finish());
         self.queue.submit(command_buffers);
