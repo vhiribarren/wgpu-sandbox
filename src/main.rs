@@ -2,7 +2,8 @@ mod draw_context;
 mod scenarios;
 mod triangle;
 
-use std::time::Instant;
+use std::ops::Add;
+use std::time::{Duration, Instant};
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
@@ -21,7 +22,7 @@ const DEFAULT_SHADER: &str = include_str!("./shaders/default.wgsl");
 const DEFAULT_SHADER_MAIN_FRG: &str = "frg_main";
 const DEFAULT_SHADER_MAIN_VTX: &str = "vtx_main";
 
-const TARGET_FPS: f32 = 1.0 / 60.0;
+const TARGET_DRAW_FREQ: f64 = 1.0 / 60.0;
 
 fn init_log() {
     let mut builder = fern::Dispatch::new();
@@ -117,6 +118,8 @@ async fn async_main() {
     let mut last_update_instant = scenario_start.clone();
     let mut last_draw_instant = scenario_start.clone();
 
+    let draw_period_target = Duration::from_secs_f64(TARGET_DRAW_FREQ);
+
     event_loop.run(move |event, _target, control_flow| {
         *control_flow = ControlFlow::Poll;
         match event {
@@ -134,9 +137,18 @@ async fn async_main() {
                 debug!("Window resized");
             }
             Event::MainEventsCleared => {
-                let current_instant = Instant::now();
-                let update_delta = current_instant.duration_since(last_update_instant);
-                last_update_instant = current_instant;
+                let elapsed = last_draw_instant.elapsed();
+                if elapsed >= draw_period_target {
+                    last_draw_instant = Instant::now();
+                    window.request_redraw();
+                } else {
+                    *control_flow =
+                        ControlFlow::WaitUntil(Instant::now() + draw_period_target - elapsed);
+                }
+            }
+            Event::RedrawRequested(_) => {
+                let update_delta = last_update_instant.elapsed();
+                last_update_instant = Instant::now();
                 simple_triangle_rotation.update(
                     &draw_context,
                     &UpdateInterval {
@@ -144,16 +156,6 @@ async fn async_main() {
                         update_delta,
                     },
                 );
-                if current_instant
-                    .duration_since(last_draw_instant)
-                    .as_secs_f32()
-                    >= TARGET_FPS
-                {
-                    window.request_redraw();
-                    last_draw_instant = current_instant;
-                }
-            }
-            Event::RedrawRequested(_) => {
                 draw_context
                     .render_object(simple_triangle_rotation.drawables())
                     .unwrap();
