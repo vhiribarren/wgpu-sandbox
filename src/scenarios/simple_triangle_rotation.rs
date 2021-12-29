@@ -1,20 +1,17 @@
 use crate::draw_context::DrawContext;
+use crate::draw_context::Drawable;
+use crate::primitive::Object3D;
 use crate::scenarios::{Scenario, UpdateInterval};
-use crate::triangle::Triangle;
-use crate::Drawable;
-use std::borrow::Borrow;
-use std::f64::consts::PI;
-use std::ops::Deref;
-use std::time::Duration;
+use std::iter::once;
 
 const ROTATION_DEG_PER_S: f32 = 45.0;
 
 pub struct SimpleTriangleRotation {
-    pub triangle: Box<Triangle>,
+    pub triangle: Box<Object3D>,
 }
 
 impl SimpleTriangleRotation {
-    pub fn new(triangle: Triangle) -> Self {
+    pub fn new(triangle: Object3D) -> Self {
         SimpleTriangleRotation {
             triangle: Box::new(triangle),
         }
@@ -29,8 +26,7 @@ impl Scenario for SimpleTriangleRotation {
             cgmath::Matrix4::from_angle_z(cgmath::Deg(new_rotation));
         self.triangle.set_transform(context, transform);
     }
-
-    fn drawables(&self) -> &dyn Drawable {
-        self.triangle.as_ref()
+    fn drawables<'a>(&'a self) -> Box<dyn Iterator<Item = &'a Drawable> + 'a> {
+        Box::new(once((*self.triangle).as_ref()))
     }
 }

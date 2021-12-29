@@ -1,6 +1,6 @@
 use anyhow::anyhow;
-use cgmath::Matrix4;
 use log::debug;
+use wgpu::util::DeviceExt;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
@@ -47,11 +47,75 @@ impl Vertex {
     }
 }
 
-pub trait Drawable {
-    fn render_pipeline(&self) -> &wgpu::RenderPipeline;
-    fn vertex_buffer(&self) -> &wgpu::Buffer;
-    fn vertex_count(&self) -> usize;
-    fn transform_bind_group(&self) -> &wgpu::BindGroup;
+pub struct Drawable {
+    pub render_pipeline: wgpu::RenderPipeline,
+    pub vertex_buffer: wgpu::Buffer,
+    pub vertex_count: u32,
+    pub transform_buffer: wgpu::Buffer,
+    pub transform_bind_group: wgpu::BindGroup,
+}
+
+impl Drawable {
+    pub fn init(
+        context: &DrawContext,
+        vertex_slice: &[Vertex],
+        vertex_state: wgpu::VertexState,
+        fragment_state: wgpu::FragmentState,
+    ) -> Self {
+        let vertex_count = vertex_slice.len() as u32;
+        let vertex_buffer = context
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Buffer"),
+                contents: bytemuck::cast_slice(vertex_slice),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+        let render_pipeline =
+            context
+                .device
+                .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                    label: Some("Render Pipeline"),
+                    layout: Some(&context.pipeline_layout),
+                    vertex: vertex_state,
+                    fragment: Some(fragment_state),
+                    primitive: wgpu::PrimitiveState {
+                        topology: wgpu::PrimitiveTopology::TriangleList,
+                        strip_index_format: None,
+                        front_face: wgpu::FrontFace::Ccw,
+                        cull_mode: Some(wgpu::Face::Back),
+                        clamp_depth: false,
+                        polygon_mode: wgpu::PolygonMode::Fill, // wgpu::PolygonMode::Line
+                        conservative: false,
+                    },
+                    depth_stencil: None,
+                    multisample: Default::default(),
+                });
+        let transform_buffer =
+            context
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Camera Buffer"),
+                    contents: crate::draw_context::UniformMatrix4::identity().as_ref(),
+                    usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
+                });
+        let transform_bind_group = context
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Transform bind group"),
+                layout: &context.transform_bind_group_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: transform_buffer.as_entire_binding(),
+                }],
+            });
+        Drawable {
+            render_pipeline,
+            vertex_count,
+            vertex_buffer,
+            transform_buffer,
+            transform_bind_group,
+        }
+    }
 }
 
 pub struct DrawContext<'a> {
@@ -133,7 +197,10 @@ impl DrawContext<'_> {
         })
     }
 
-    pub fn render_objects(&self, drawables: &[Box<dyn Drawable>]) -> anyhow::Result<()> {
+    pub fn render_objects<'a>(
+        &self,
+        drawables: &mut dyn Iterator<Item = &'a Drawable>,
+    ) -> anyhow::Result<()> {
         let displayed_texture = self.surface.get_current_texture()?;
         let view = displayed_texture
             .texture
@@ -162,52 +229,11 @@ impl DrawContext<'_> {
             depth_stencil_attachment: None,
         });
         for drawable in drawables {
-            render_pass.set_pipeline(drawable.render_pipeline());
-            render_pass.set_bind_group(0, drawable.transform_bind_group(), &[]);
-            render_pass.set_vertex_buffer(0, drawable.vertex_buffer().slice(..));
-            render_pass.draw(0..(drawable.vertex_count() as u32), 0..1);
+            render_pass.set_pipeline(&drawable.render_pipeline);
+            render_pass.set_bind_group(0, &drawable.transform_bind_group, &[]);
+            render_pass.set_vertex_buffer(0, drawable.vertex_buffer.slice(..));
+            render_pass.draw(0..drawable.vertex_count, 0..1);
         }
-        drop(render_pass);
-        let command_buffers = std::iter::once(encoder.finish());
-        self.queue.submit(command_buffers);
-        displayed_texture.present();
-        Ok(())
-    }
-
-    pub fn render_object(&self, drawable: &dyn Drawable) -> anyhow::Result<()> {
-        let displayed_texture = self.surface.get_current_texture()?;
-        let view = displayed_texture
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Command Encoder"),
-            });
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Render pass"),
-            color_attachments: &[wgpu::RenderPassColorAttachment {
-                view: &view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 1.0,
-                        g: 0.0,
-                        b: 0.0,
-                        a: 1.0,
-                    }),
-                    store: true,
-                },
-            }],
-            depth_stencil_attachment: None,
-        });
-
-        render_pass.set_pipeline(drawable.render_pipeline());
-        render_pass.set_bind_group(0, drawable.transform_bind_group(), &[]);
-        render_pass.set_vertex_buffer(0, drawable.vertex_buffer().slice(..));
-        render_pass.draw(0..(drawable.vertex_count() as u32), 0..1);
-
         drop(render_pass);
         let command_buffers = std::iter::once(encoder.finish());
         self.queue.submit(command_buffers);

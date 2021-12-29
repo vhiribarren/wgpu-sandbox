@@ -11,5 +11,5 @@ pub struct UpdateInterval {
 
 pub trait Scenario {
     fn update(&mut self, context: &DrawContext, update_interval: &UpdateInterval);
-    fn drawables(&self) -> &dyn Drawable;
+    fn drawables<'a>(&'a self) -> Box<dyn Iterator<Item = &'a Drawable> + 'a>;
 }
