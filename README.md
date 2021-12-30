@@ -1,4 +1,34 @@
-/*
+# WGPU-based experiments
+
+Hobby project to test the Rust programming language and WebGPU.
+
+Used technologies: Rust, winit, WebAssembly, WebGPU, WebGL.
+
+
+## How to launch
+
+    $ cargo run
+
+For the web version:
+
+    $ ./run-web.sh
+
+... then launch a browser with the displayed URL.
+
+# References
+
+I heavily read and used the [Learn WGPU tutorial](https://sotrh.github.io/learn-wgpu).
+
+Mains references links are:
+- https://github.com/gfx-rs/wgpu
+- https://www.w3.org/TR/webgpu
+- https://www.w3.org/TR/WGSL
+
+Having a look to some [wasm-compatible examples](https://github.com/gfx-rs/wgpu/tree/master/wgpu/examples)
+did helped a lot too. 
+
+## License
+
 MIT License
 
 Copyright (c) 2021, 2022 Vincent Hiribarren
@@ -20,20 +50,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-*/
-
-pub mod simple_triangle_rotation;
-
-use crate::draw_context::DrawContext;
-use crate::Drawable;
-use instant::{Duration, Instant};
-
-pub struct UpdateInterval {
-    pub scenario_start: Instant,
-    pub update_delta: Duration,
-}
-
-pub trait Scenario {
-    fn update(&mut self, context: &DrawContext, update_interval: &UpdateInterval);
-    fn drawables<'a>(&'a self) -> Box<dyn Iterator<Item = &'a Drawable> + 'a>;
-}
