@@ -2,7 +2,7 @@ mod draw_context;
 mod primitive;
 mod scenarios;
 
-use std::time::{Duration, Instant};
+use instant::{Duration, Instant};
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};

@@ -2,7 +2,7 @@ pub mod simple_triangle_rotation;
 
 use crate::draw_context::DrawContext;
 use crate::Drawable;
-use std::time::{Duration, Instant};
+use instant::{Duration, Instant};
 
 pub struct UpdateInterval {
     pub scenario_start: Instant,

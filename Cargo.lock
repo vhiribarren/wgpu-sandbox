@@ -693,6 +693,7 @@ dependencies = [
  "chrono",
  "console_log",
  "fern",
+ "instant",
  "log",
  "pollster",
  "raw-window-handle",
