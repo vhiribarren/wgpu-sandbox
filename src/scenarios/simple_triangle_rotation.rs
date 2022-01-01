@@ -23,9 +23,9 @@ SOFTWARE.
 */
 
 use crate::draw_context::DrawContext;
+use crate::primitive;
 use crate::primitive::Object3D;
 use crate::scenarios::{Scenario, UpdateInterval};
-use crate::primitive;
 
 const DEFAULT_SHADER: &str = include_str!("../shaders/default.wgsl");
 const DEFAULT_SHADER_MAIN_FRG: &str = "frg_main";

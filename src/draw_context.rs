@@ -108,12 +108,13 @@ impl Drawable {
                         strip_index_format: None,
                         front_face: wgpu::FrontFace::Ccw,
                         cull_mode: Some(wgpu::Face::Back),
-                        clamp_depth: false,
+                        unclipped_depth: false,
                         polygon_mode: wgpu::PolygonMode::Fill, // wgpu::PolygonMode::Line
                         conservative: false,
                     },
                     depth_stencil: None,
                     multisample: Default::default(),
+                    multiview: None,
                 });
         let transform_buffer =
             context
