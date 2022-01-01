@@ -23,22 +23,45 @@ SOFTWARE.
 */
 
 use crate::draw_context::DrawContext;
-use crate::draw_context::Drawable;
 use crate::primitive::Object3D;
 use crate::scenarios::{Scenario, UpdateInterval};
-use std::iter::once;
+use crate::primitive;
+
+const DEFAULT_SHADER: &str = include_str!("../shaders/default.wgsl");
+const DEFAULT_SHADER_MAIN_FRG: &str = "frg_main";
+const DEFAULT_SHADER_MAIN_VTX: &str = "vtx_main";
 
 const ROTATION_DEG_PER_S: f32 = 45.0;
 
 pub struct SimpleTriangleRotation {
-    pub triangle: Box<Object3D>,
+    pub triangle: Object3D,
 }
 
 impl SimpleTriangleRotation {
-    pub fn new(triangle: Object3D) -> Self {
-        SimpleTriangleRotation {
-            triangle: Box::new(triangle),
-        }
+    pub fn new(draw_context: &DrawContext) -> Self {
+        let default_shader_module =
+            draw_context
+                .device
+                .create_shader_module(&wgpu::ShaderModuleDescriptor {
+                    label: Some("Fragment Shader"),
+                    source: wgpu::ShaderSource::Wgsl(DEFAULT_SHADER.into()),
+                });
+        let vertex_state = wgpu::VertexState {
+            module: &default_shader_module,
+            entry_point: DEFAULT_SHADER_MAIN_VTX,
+            buffers: &[draw_context.vertex_buffer_layout.clone()],
+        };
+        let fragment_state = wgpu::FragmentState {
+            module: &default_shader_module,
+            entry_point: DEFAULT_SHADER_MAIN_FRG,
+            targets: &[wgpu::ColorTargetState {
+                format: draw_context.config.format,
+                blend: Some(wgpu::BlendState::REPLACE),
+                write_mask: wgpu::ColorWrites::ALL,
+            }],
+        };
+        let triangle = primitive::create_triangle(draw_context, vertex_state, fragment_state);
+        SimpleTriangleRotation { triangle }
     }
 }
 
@@ -50,7 +73,10 @@ impl Scenario for SimpleTriangleRotation {
             cgmath::Matrix4::from_angle_z(cgmath::Deg(new_rotation));
         self.triangle.set_transform(context, transform);
     }
-    fn drawables<'a>(&'a self) -> Box<dyn Iterator<Item = &'a Drawable> + 'a> {
-        Box::new(once((*self.triangle).as_ref()))
+    fn render<'drawable, 'render>(
+        &'drawable self,
+        render_pass: &'render mut wgpu::RenderPass<'drawable>,
+    ) {
+        self.triangle.as_ref().render(render_pass);
     }
 }

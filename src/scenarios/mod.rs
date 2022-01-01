@@ -25,7 +25,6 @@ SOFTWARE.
 pub mod simple_triangle_rotation;
 
 use crate::draw_context::DrawContext;
-use crate::Drawable;
 use instant::{Duration, Instant};
 
 pub struct UpdateInterval {
@@ -35,5 +34,8 @@ pub struct UpdateInterval {
 
 pub trait Scenario {
     fn update(&mut self, context: &DrawContext, update_interval: &UpdateInterval);
-    fn drawables<'a>(&'a self) -> Box<dyn Iterator<Item = &'a Drawable> + 'a>;
+    fn render<'drawable, 'render>(
+        &'drawable self,
+        render_pass: &'render mut wgpu::RenderPass<'drawable>,
+    );
 }

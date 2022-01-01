@@ -22,6 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+use crate::Scenario;
 use anyhow::anyhow;
 use log::debug;
 use wgpu::util::DeviceExt;
@@ -140,6 +141,16 @@ impl Drawable {
             transform_bind_group,
         }
     }
+
+    pub fn render<'drawable, 'render>(
+        &'drawable self,
+        render_pass: &'render mut wgpu::RenderPass<'drawable>,
+    ) {
+        render_pass.set_pipeline(&self.render_pipeline);
+        render_pass.set_bind_group(0, &self.transform_bind_group, &[]);
+        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        render_pass.draw(0..self.vertex_count, 0..1);
+    }
 }
 
 pub struct DrawContext<'a> {
@@ -221,10 +232,7 @@ impl DrawContext<'_> {
         })
     }
 
-    pub fn render_objects<'a>(
-        &self,
-        drawables: &mut dyn Iterator<Item = &'a Drawable>,
-    ) -> anyhow::Result<()> {
+    pub fn render_scene<T: Scenario>(&self, scene: &T) -> anyhow::Result<()> {
         let displayed_texture = self.surface.get_current_texture()?;
         let view = displayed_texture
             .texture
@@ -252,12 +260,9 @@ impl DrawContext<'_> {
             }],
             depth_stencil_attachment: None,
         });
-        for drawable in drawables {
-            render_pass.set_pipeline(&drawable.render_pipeline);
-            render_pass.set_bind_group(0, &drawable.transform_bind_group, &[]);
-            render_pass.set_vertex_buffer(0, drawable.vertex_buffer.slice(..));
-            render_pass.draw(0..drawable.vertex_count, 0..1);
-        }
+
+        scene.render(&mut render_pass);
+
         drop(render_pass);
         let command_buffers = std::iter::once(encoder.finish());
         self.queue.submit(command_buffers);

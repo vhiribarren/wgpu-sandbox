@@ -31,7 +31,6 @@ use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
 
-use crate::draw_context::Drawable;
 use crate::scenarios::simple_triangle_rotation::SimpleTriangleRotation;
 use crate::scenarios::{Scenario, UpdateInterval};
 use log::{debug, info};
@@ -40,10 +39,6 @@ use winit::error::OsError;
 const GLOBAL_LOG_FILTER: log::LevelFilter = log::LevelFilter::Info;
 #[cfg(target_arch = "wasm32")]
 const WEBAPP_CANVAS_ID: &str = "target";
-
-const DEFAULT_SHADER: &str = include_str!("./shaders/default.wgsl");
-const DEFAULT_SHADER_MAIN_FRG: &str = "frg_main";
-const DEFAULT_SHADER_MAIN_VTX: &str = "vtx_main";
 
 const TARGET_DRAW_FPS: f64 = 60.0;
 
@@ -111,32 +106,7 @@ async fn async_main() {
     )
     .await
     .unwrap();
-    let triangle = {
-        let default_shader_module =
-            draw_context
-                .device
-                .create_shader_module(&wgpu::ShaderModuleDescriptor {
-                    label: Some("Fragment Shader"),
-                    source: wgpu::ShaderSource::Wgsl(DEFAULT_SHADER.into()),
-                });
-        let vertex_state = wgpu::VertexState {
-            module: &default_shader_module,
-            entry_point: DEFAULT_SHADER_MAIN_VTX,
-            buffers: &[draw_context.vertex_buffer_layout.clone()],
-        };
-        let fragment_state = wgpu::FragmentState {
-            module: &default_shader_module,
-            entry_point: DEFAULT_SHADER_MAIN_FRG,
-            targets: &[wgpu::ColorTargetState {
-                format: draw_context.config.format,
-                blend: Some(wgpu::BlendState::REPLACE),
-                write_mask: wgpu::ColorWrites::ALL,
-            }],
-        };
-        primitive::create_triangle(&draw_context, vertex_state, fragment_state)
-    };
-    let mut simple_triangle_rotation = SimpleTriangleRotation::new(triangle);
-
+    let mut simple_triangle_rotation = SimpleTriangleRotation::new(&draw_context);
     let scenario_start = Instant::now();
     let mut last_draw_instant = scenario_start;
     let draw_period_target = Duration::from_secs_f64(1.0 / TARGET_DRAW_FPS);
@@ -176,7 +146,7 @@ async fn async_main() {
                 },
             );
             draw_context
-                .render_objects(&mut *simple_triangle_rotation.drawables())
+                .render_scene(&simple_triangle_rotation)
                 .unwrap();
         }
         _ => {}
