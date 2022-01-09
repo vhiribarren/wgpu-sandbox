@@ -23,8 +23,7 @@ SOFTWARE.
 */
 
 use crate::draw_context::DrawContext;
-use crate::primitive;
-use crate::primitive::Object3D;
+use crate::primitives::{triangle, Object3D};
 use crate::scenarios::{Scenario, UpdateInterval};
 
 const DEFAULT_SHADER: &str = include_str!("../shaders/default.wgsl");
@@ -60,7 +59,7 @@ impl SimpleTriangleRotation {
                 write_mask: wgpu::ColorWrites::ALL,
             }],
         };
-        let triangle = primitive::create_triangle(draw_context, vertex_state, fragment_state);
+        let triangle = triangle::create_triangle(draw_context, vertex_state, fragment_state);
         SimpleTriangleRotation { triangle }
     }
 }

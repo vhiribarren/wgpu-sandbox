@@ -22,10 +22,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-mod draw_context;
-mod primitive;
-mod scenarios;
-
 use instant::{Duration, Instant};
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
@@ -33,6 +29,7 @@ use winit::window::{Window, WindowBuilder};
 
 use crate::scenarios::simple_triangle_rotation::SimpleTriangleRotation;
 use crate::scenarios::{Scenario, UpdateInterval};
+use intro_cube_wgpu::{draw_context, scenarios};
 use log::{debug, info};
 use winit::error::OsError;
 

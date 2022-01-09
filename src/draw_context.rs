@@ -23,27 +23,17 @@ SOFTWARE.
 */
 
 use crate::draw_context::Drawable::Direct;
-use crate::Scenario;
+use crate::scenarios::Scenario;
 use anyhow::anyhow;
 use log::debug;
 use wgpu::util::DeviceExt;
 
-#[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct UniformMatrix4(pub [[f32; 4]; 4]);
-
-impl UniformMatrix4 {
-    pub fn identity() -> Self {
-        use cgmath::SquareMatrix;
-        Self(cgmath::Matrix4::identity().into())
-    }
-}
-
-impl AsRef<[u8]> for UniformMatrix4 {
-    fn as_ref(&self) -> &[u8] {
-        bytemuck::cast_slice(&self.0)
-    }
-}
+const M4X4_ID_UNIFORM: [[f32; 4]; 4] = [
+    [1., 0., 0., 0.],
+    [0., 1., 0., 0.],
+    [0., 0., 1., 0.],
+    [0., 0., 0., 1.],
+];
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -149,7 +139,7 @@ impl Drawable {
                 .device
                 .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: Some("Camera Buffer"),
-                    contents: crate::draw_context::UniformMatrix4::identity().as_ref(),
+                    contents: bytemuck::cast_slice(&M4X4_ID_UNIFORM),
                     usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
                 });
         let transform_bind_group = context
