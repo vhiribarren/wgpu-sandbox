@@ -22,6 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+pub mod cube;
 pub mod triangle;
 
 use crate::draw_context::{DrawContext, Drawable};

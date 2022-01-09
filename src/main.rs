@@ -32,6 +32,7 @@ use crate::scenarios::{Scenario, UpdateInterval};
 use intro_cube_wgpu::{draw_context, scenarios};
 use log::{debug, info};
 use winit::error::OsError;
+use intro_cube_wgpu::scenarios::simple_cube::SimpleCubeRotation;
 
 const GLOBAL_LOG_FILTER: log::LevelFilter = log::LevelFilter::Info;
 #[cfg(target_arch = "wasm32")]
@@ -103,7 +104,7 @@ async fn async_main() {
     )
     .await
     .unwrap();
-    let mut simple_triangle_rotation = SimpleTriangleRotation::new(&draw_context);
+    let mut scenario = SimpleCubeRotation::new(&draw_context);
     let scenario_start = Instant::now();
     let mut last_draw_instant = scenario_start;
     let draw_period_target = Duration::from_secs_f64(1.0 / TARGET_DRAW_FPS);
@@ -135,7 +136,7 @@ async fn async_main() {
         Event::RedrawRequested(_) => {
             let update_delta = last_draw_instant.elapsed();
             last_draw_instant = Instant::now();
-            simple_triangle_rotation.update(
+            scenario.update(
                 &draw_context,
                 &UpdateInterval {
                     scenario_start,
@@ -143,7 +144,7 @@ async fn async_main() {
                 },
             );
             draw_context
-                .render_scene(&simple_triangle_rotation)
+                .render_scene(&scenario)
                 .unwrap();
         }
         _ => {}

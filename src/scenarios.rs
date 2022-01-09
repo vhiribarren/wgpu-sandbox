@@ -23,6 +23,7 @@ SOFTWARE.
 */
 
 pub mod simple_triangle_rotation;
+pub mod simple_cube;
 
 use crate::draw_context::DrawContext;
 use instant::{Duration, Instant};

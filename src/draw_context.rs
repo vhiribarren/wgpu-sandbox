@@ -22,7 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-use crate::draw_context::Drawable::Direct;
+use crate::draw_context::Drawable::{Direct, Indexed};
 use crate::scenarios::Scenario;
 use anyhow::anyhow;
 use log::debug;
@@ -63,6 +63,15 @@ impl Vertex {
     }
 }
 
+impl Default for Vertex {
+    fn default() -> Self {
+        Vertex {
+            position: [0., 0., 0.],
+            color: [1., 1., 1.],
+        }
+    }
+}
+
 struct BaseDrawable {
     render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
@@ -77,6 +86,8 @@ pub struct DirectRenderingDrawable {
 
 pub struct IndexedRenderingDrawable {
     base: BaseDrawable,
+    index_buffer: wgpu::Buffer,
+    index_count: u32,
 }
 
 pub enum Drawable {
@@ -96,8 +107,23 @@ impl Drawable {
         Direct(DirectRenderingDrawable { base, vertex_count })
     }
 
-    pub fn init_indexed() -> Self {
-        unimplemented!()
+    pub fn init_indexed(
+        context: &DrawContext,
+        vertex_slice: &[Vertex],
+        vertex_indices: &[[u16; 3]],
+        vertex_state: wgpu::VertexState,
+        fragment_state: wgpu::FragmentState,
+    ) -> Self {
+        let base = Self::init_base(context, vertex_slice, vertex_state, fragment_state);
+        let index_buffer = context
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Index Buffer"),
+                contents: bytemuck::cast_slice(vertex_indices),
+                usage: wgpu::BufferUsages::INDEX,
+            });
+        let index_count = 3 * vertex_indices.len() as u32;
+        Indexed(IndexedRenderingDrawable { base, index_buffer, index_count })
     }
 
     fn init_base(
@@ -181,9 +207,9 @@ impl Drawable {
             Drawable::Direct(d) => {
                 render_pass.draw(0..d.vertex_count, 0..1);
             }
-            Drawable::Indexed(_) => {
-                //render_pass.set_index_buffer();
-                //render_pass.draw_indexed();
+            Drawable::Indexed(d) => {
+                render_pass.set_index_buffer(d.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+                render_pass.draw_indexed(0..d.index_count, 0, 0..1);
             }
         };
     }
