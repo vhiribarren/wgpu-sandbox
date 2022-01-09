@@ -1,5 +1,5 @@
 use crate::draw_context::Drawable;
-use crate::draw_context::{DrawContext, UniformMatrix4, Vertex};
+use crate::draw_context::{DrawContext, Vertex};
 use cgmath::Matrix4;
 use cgmath::SquareMatrix;
 
@@ -26,13 +26,7 @@ pub struct Object3D {
 impl Object3D {
     pub fn set_transform(&mut self, context: &DrawContext, transform: Matrix4<f32>) {
         self.transform = transform;
-        let transform_uniform: UniformMatrix4 = UniformMatrix4(transform.into());
-        #[allow(clippy::unnecessary_cast)]
-        context.queue.write_buffer(
-            &self.drawable.transform_buffer,
-            0 as wgpu::BufferAddress,
-            transform_uniform.as_ref(),
-        );
+        self.drawable.set_transform(context, self.transform);
     }
     #[allow(dead_code)]
     pub fn get_transform(&self) -> &Matrix4<f32> {
@@ -51,7 +45,7 @@ pub fn create_triangle(
     vertex_state: wgpu::VertexState,
     fragment_state: wgpu::FragmentState,
 ) -> Object3D {
-    let drawable = Drawable::init(context, &TRIANGLE, vertex_state, fragment_state);
+    let drawable = Drawable::init_direct(context, &TRIANGLE, vertex_state, fragment_state);
     let transform = Matrix4::<f32>::identity();
     Object3D {
         transform,

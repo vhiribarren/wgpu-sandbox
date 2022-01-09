@@ -22,6 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+use crate::draw_context::Drawable::Direct;
 use crate::Scenario;
 use anyhow::anyhow;
 use log::debug;
@@ -72,22 +73,49 @@ impl Vertex {
     }
 }
 
-pub struct Drawable {
-    pub render_pipeline: wgpu::RenderPipeline,
-    pub vertex_buffer: wgpu::Buffer,
-    pub vertex_count: u32,
-    pub transform_buffer: wgpu::Buffer,
-    pub transform_bind_group: wgpu::BindGroup,
+struct BaseDrawable {
+    render_pipeline: wgpu::RenderPipeline,
+    vertex_buffer: wgpu::Buffer,
+    transform_buffer: wgpu::Buffer,
+    transform_bind_group: wgpu::BindGroup,
+}
+
+pub struct DirectRenderingDrawable {
+    base: BaseDrawable,
+    vertex_count: u32,
+}
+
+pub struct IndexedRenderingDrawable {
+    base: BaseDrawable,
+}
+
+pub enum Drawable {
+    Direct(DirectRenderingDrawable),
+    Indexed(IndexedRenderingDrawable),
 }
 
 impl Drawable {
-    pub fn init(
+    pub fn init_direct(
         context: &DrawContext,
         vertex_slice: &[Vertex],
         vertex_state: wgpu::VertexState,
         fragment_state: wgpu::FragmentState,
     ) -> Self {
         let vertex_count = vertex_slice.len() as u32;
+        let base = Self::init_base(context, vertex_slice, vertex_state, fragment_state);
+        Direct(DirectRenderingDrawable { base, vertex_count })
+    }
+
+    pub fn init_indexed() -> Self {
+        unimplemented!()
+    }
+
+    fn init_base(
+        context: &DrawContext,
+        vertex_slice: &[Vertex],
+        vertex_state: wgpu::VertexState,
+        fragment_state: wgpu::FragmentState,
+    ) -> BaseDrawable {
         let vertex_buffer = context
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -134,23 +162,49 @@ impl Drawable {
                     resource: transform_buffer.as_entire_binding(),
                 }],
             });
-        Drawable {
+        BaseDrawable {
             render_pipeline,
-            vertex_count,
             vertex_buffer,
             transform_buffer,
             transform_bind_group,
         }
     }
 
+    pub fn set_transform(&mut self, context: &DrawContext, transform: impl AsRef<[[f32; 4]; 4]>) {
+        #[allow(clippy::unnecessary_cast)]
+        context.queue.write_buffer(
+            &self.as_ref().transform_buffer,
+            0 as wgpu::BufferAddress,
+            bytemuck::cast_slice(transform.as_ref()),
+        );
+    }
+
     pub fn render<'drawable, 'render>(
         &'drawable self,
         render_pass: &'render mut wgpu::RenderPass<'drawable>,
     ) {
-        render_pass.set_pipeline(&self.render_pipeline);
-        render_pass.set_bind_group(0, &self.transform_bind_group, &[]);
-        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        render_pass.draw(0..self.vertex_count, 0..1);
+        let base = self.as_ref();
+        render_pass.set_pipeline(&base.render_pipeline);
+        render_pass.set_bind_group(0, &base.transform_bind_group, &[]);
+        render_pass.set_vertex_buffer(0, base.vertex_buffer.slice(..));
+        match self {
+            Drawable::Direct(d) => {
+                render_pass.draw(0..d.vertex_count, 0..1);
+            }
+            Drawable::Indexed(_) => {
+                //render_pass.set_index_buffer();
+                //render_pass.draw_indexed();
+            }
+        };
+    }
+}
+
+impl AsRef<BaseDrawable> for Drawable {
+    fn as_ref(&self) -> &BaseDrawable {
+        match self {
+            Self::Direct(d) => &d.base,
+            Self::Indexed(d) => &d.base,
+        }
     }
 }
 
