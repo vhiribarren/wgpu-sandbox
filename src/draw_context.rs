@@ -26,7 +26,8 @@ use crate::draw_context::Drawable::{Direct, Indexed};
 use crate::scenarios::Scenario;
 use anyhow::anyhow;
 use log::debug;
-use wgpu::util::DeviceExt;
+use wgpu::util::{BufferInitDescriptor, DeviceExt};
+use wgpu::{BindGroupLayoutDescriptor, BindingType, BufferBindingType, BufferUsages, ShaderStages};
 
 const M4X4_ID_UNIFORM: [[f32; 4]; 4] = [
     [1., 0., 0., 0.],
@@ -123,7 +124,11 @@ impl Drawable {
                 usage: wgpu::BufferUsages::INDEX,
             });
         let index_count = 3 * vertex_indices.len() as u32;
-        Indexed(IndexedRenderingDrawable { base, index_buffer, index_count })
+        Indexed(IndexedRenderingDrawable {
+            base,
+            index_buffer,
+            index_count,
+        })
     }
 
     fn init_base(
@@ -201,7 +206,7 @@ impl Drawable {
     ) {
         let base = self.as_ref();
         render_pass.set_pipeline(&base.render_pipeline);
-        render_pass.set_bind_group(0, &base.transform_bind_group, &[]);
+        render_pass.set_bind_group(1, &base.transform_bind_group, &[]);
         render_pass.set_vertex_buffer(0, base.vertex_buffer.slice(..));
         match self {
             Drawable::Direct(d) => {
@@ -227,6 +232,8 @@ impl AsRef<BaseDrawable> for Drawable {
 pub struct DrawContext<'a> {
     _adapter: wgpu::Adapter,
     surface: wgpu::Surface,
+    camera_buffer: wgpu::Buffer,
+    camera_bind_group: wgpu::BindGroup,
     pub queue: wgpu::Queue,
     pub transform_bind_group_layout: wgpu::BindGroupLayout,
     pub device: wgpu::Device,
@@ -286,17 +293,47 @@ impl DrawContext<'_> {
                     count: None,
                 }],
             });
+        let camera_buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("Camera Buffer"),
+            contents: bytemuck::cast_slice(&M4X4_ID_UNIFORM),
+            usage: BufferUsages::UNIFORM,
+        });
+        let camera_bind_group_layout =
+            device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+                label: None,
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::VERTEX,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: &camera_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
+        });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Pipeline Layout"),
-            bind_group_layouts: &[&transform_bind_group_layout],
+            bind_group_layouts: &[&camera_bind_group_layout, &transform_bind_group_layout],
             push_constant_ranges: &[],
         });
+
         Ok(DrawContext {
             _adapter: adapter,
             surface,
             device,
             queue,
             config,
+            camera_buffer,
+            camera_bind_group,
             transform_bind_group_layout,
             vertex_buffer_layout,
             pipeline_layout,
@@ -331,7 +368,7 @@ impl DrawContext<'_> {
             }],
             depth_stencil_attachment: None,
         });
-
+        render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
         scene.render(&mut render_pass);
 
         drop(render_pass);

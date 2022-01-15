@@ -23,7 +23,7 @@ SOFTWARE.
 */
 
 use crate::draw_context::DrawContext;
-use crate::primitives::{Object3D, cube};
+use crate::primitives::{cube, Object3D};
 use crate::scenarios::{Scenario, UpdateInterval};
 
 const DEFAULT_SHADER: &str = include_str!("../shaders/default.wgsl");

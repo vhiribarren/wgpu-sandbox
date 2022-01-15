@@ -29,10 +29,10 @@ use winit::window::{Window, WindowBuilder};
 
 use crate::scenarios::simple_triangle_rotation::SimpleTriangleRotation;
 use crate::scenarios::{Scenario, UpdateInterval};
+use intro_cube_wgpu::scenarios::simple_cube::SimpleCubeRotation;
 use intro_cube_wgpu::{draw_context, scenarios};
 use log::{debug, info};
 use winit::error::OsError;
-use intro_cube_wgpu::scenarios::simple_cube::SimpleCubeRotation;
 
 const GLOBAL_LOG_FILTER: log::LevelFilter = log::LevelFilter::Info;
 #[cfg(target_arch = "wasm32")]
@@ -143,9 +143,7 @@ async fn async_main() {
                     update_delta,
                 },
             );
-            draw_context
-                .render_scene(&scenario)
-                .unwrap();
+            draw_context.render_scene(&scenario).unwrap();
         }
         _ => {}
     });

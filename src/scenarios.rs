@@ -22,8 +22,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-pub mod simple_triangle_rotation;
 pub mod simple_cube;
+pub mod simple_triangle_rotation;
 
 use crate::draw_context::DrawContext;
 use instant::{Duration, Instant};
