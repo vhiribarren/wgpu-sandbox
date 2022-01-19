@@ -27,7 +27,7 @@ use crate::scenarios::Scenario;
 use anyhow::anyhow;
 use log::debug;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
-use wgpu::{BindGroupLayoutDescriptor, BindingType, BufferBindingType, BufferUsages, ShaderStages};
+use wgpu::{BindGroupLayoutDescriptor, BindingType, BufferBindingType, ShaderStages};
 
 const M4X4_ID_UNIFORM: [[f32; 4]; 4] = [
     [1., 0., 0., 0.],
@@ -296,7 +296,7 @@ impl DrawContext<'_> {
         let camera_buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Camera Buffer"),
             contents: bytemuck::cast_slice(&M4X4_ID_UNIFORM),
-            usage: BufferUsages::UNIFORM,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
         });
         let camera_bind_group_layout =
             device.create_bind_group_layout(&BindGroupLayoutDescriptor {
@@ -338,6 +338,15 @@ impl DrawContext<'_> {
             vertex_buffer_layout,
             pipeline_layout,
         })
+    }
+
+    pub fn set_projection(&self, transform: impl AsRef<[[f32; 4]; 4]>) {
+        #[allow(clippy::unnecessary_cast)]
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            0 as wgpu::BufferAddress,
+            bytemuck::cast_slice(transform.as_ref()),
+        );
     }
 
     pub fn render_scene<T: Scenario>(&self, scene: &T) -> anyhow::Result<()> {
