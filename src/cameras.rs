@@ -24,9 +24,16 @@ SOFTWARE.
 
 use cgmath::{vec3, Matrix4, Vector3};
 use cgmath::{Ortho, Point3};
+use lazy_static::lazy_static;
 use log::debug;
 use std::collections::BTreeSet;
 use winit::event::{DeviceEvent, ElementState, KeyboardInput, VirtualKeyCode};
+
+lazy_static! {
+    static ref TO_RH_COORDS: Matrix4<f32> = Matrix4::from_nonuniform_scale(1., 1., -1.);
+    static ref TO_WEBGPU_NDCS: Matrix4<f32> =
+        Matrix4::from_translation(vec3(0., 0., 0.5)) * Matrix4::from_nonuniform_scale(1., 1., 0.5);
+}
 
 pub fn camera_orthogonal_default() -> Camera {
     Camera::orthogonal(
@@ -77,10 +84,7 @@ impl Camera {
         }
     }
     pub fn get_camera_matrix(&self) -> Matrix4<f32> {
-        let to_rh_coords = Matrix4::from_nonuniform_scale(1., 1., -1.);
-        let to_webgpu_ndc_coords = Matrix4::from_translation(vec3(0., 0., 0.5))
-            * Matrix4::from_nonuniform_scale(1., 1., 0.5);
-        to_webgpu_ndc_coords * self.projection * to_rh_coords * self.view
+        (*TO_RH_COORDS) * self.projection * (*TO_RH_COORDS) * self.view
     }
     fn move_z(&mut self, val: f32) {
         self.view = Matrix4::from_translation(Vector3::new(0., 0., -val)) * self.view;

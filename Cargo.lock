@@ -572,6 +572,7 @@ dependencies = [
  "console_log",
  "fern",
  "instant",
+ "lazy_static",
  "log",
  "pollster",
  "raw-window-handle",
