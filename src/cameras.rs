@@ -24,45 +24,90 @@ SOFTWARE.
 
 use cgmath::SquareMatrix;
 use cgmath::{Matrix4, Vector3};
+use std::collections::BTreeSet;
+use winit::event::{DeviceEvent, ElementState, KeyboardInput, VirtualKeyCode};
 
-pub trait MovableCamera {
-    fn move_x(&mut self, val: f32);
-    fn move_y(&mut self, val: f32);
-    fn move_z(&mut self, val: f32);
-    fn look_at(&mut self, val: Vector3<f32>);
+pub struct Camera {
+    pub projection: Matrix4<f32>,
+    pub view: Matrix4<f32>,
 }
 
-pub struct OrthogonalCamera {
-    transform: Matrix4<f32>,
+impl Camera {
+    pub fn orthogonal() -> Self {
+        Camera {
+            projection: Matrix4::identity(),
+            view: Matrix4::identity(),
+        }
+    }
+    pub fn get_camera_matrix(&self) -> Matrix4<f32> {
+        self.projection * self.view
+    }
+    fn move_z(&mut self, val: f32) {
+        self.view = Matrix4::from_translation(Vector3::new(0., 0., -val)) * self.view;
+    }
+    fn move_x(&mut self, val: f32) {
+        self.view = Matrix4::from_translation(Vector3::new(-val, 0., 0.)) * self.view;
+    }
+    fn move_y(&mut self, val: f32) {
+        self.view = Matrix4::from_translation(Vector3::new(0., -val, 0.)) * self.view;
+    }
 }
 
-impl OrthogonalCamera {
-    pub fn new() -> Self {
-        OrthogonalCamera {
-            transform: Matrix4::identity(),
+pub struct WinitCameraAdapter {
+    camera: Camera,
+    enabled_keys: BTreeSet<VirtualKeyCode>,
+    key_speed: f32,
+}
+
+impl WinitCameraAdapter {
+    const DEFAULT_KEY_SPEED: f32 = 0.03;
+
+    pub fn new(camera: Camera) -> Self {
+        WinitCameraAdapter {
+            camera,
+            enabled_keys: BTreeSet::new(),
+            key_speed: Self::DEFAULT_KEY_SPEED,
+        }
+    }
+
+    pub fn get_camera_matrix(&self) -> Matrix4<f32> {
+        self.camera.get_camera_matrix()
+    }
+
+    pub fn mouse_event_listener(&mut self, input: &DeviceEvent) {
+        dbg!(input);
+    }
+
+    pub fn keyboard_event_listener(&mut self, input: &KeyboardInput) {
+        match input.virtual_keycode {
+            None => {}
+            Some(key) => {
+                if input.state == ElementState::Pressed {
+                    self.enabled_keys.insert(key);
+                } else {
+                    self.enabled_keys.remove(&key);
+                }
+            }
+        }
+    }
+
+    pub fn update(&mut self) {
+        for key in self.enabled_keys.iter() {
+            match *key {
+                VirtualKeyCode::Up => self.camera.move_z(self.key_speed),
+                VirtualKeyCode::Down => self.camera.move_z(-self.key_speed),
+                VirtualKeyCode::Left => self.camera.move_x(-self.key_speed),
+                VirtualKeyCode::Right => self.camera.move_x(self.key_speed),
+                VirtualKeyCode::PageUp => self.camera.move_y(self.key_speed),
+                VirtualKeyCode::PageDown => self.camera.move_y(-self.key_speed),
+                _ => {}
+            };
         }
     }
 }
 
-impl AsRef<[[f32; 4]; 4]> for OrthogonalCamera {
-    fn as_ref(&self) -> &[[f32; 4]; 4] {
-        self.transform.as_ref()
-    }
-}
-
-impl MovableCamera for OrthogonalCamera {
-    fn move_x(&mut self, val: f32) {
-        self.transform = Matrix4::from_translation(Vector3::new(-val, 0., 0.)) * self.transform;
-    }
-    fn move_y(&mut self, val: f32) {
-        self.transform = Matrix4::from_translation(Vector3::new(0., -val, 0.)) * self.transform;
-    }
-
-    fn move_z(&mut self, val: f32) {
-        self.transform = Matrix4::from_translation(Vector3::new(0., 0., -val)) * self.transform;
-    }
-
-    fn look_at(&mut self, val: Vector3<f32>) {
-        todo!()
+impl AsRef<Camera> for WinitCameraAdapter {
+    fn as_ref(&self) -> &Camera {
+        &self.camera
     }
 }

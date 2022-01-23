@@ -23,13 +23,12 @@ SOFTWARE.
 */
 
 use instant::{Duration, Instant};
-use winit::event::{DeviceEvent, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
+use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
 
-use crate::scenarios::simple_triangle_rotation::SimpleTriangleRotation;
 use crate::scenarios::{Scenario, UpdateInterval};
-use intro_cube_wgpu::cameras::{MovableCamera, OrthogonalCamera};
+use intro_cube_wgpu::cameras::{Camera, WinitCameraAdapter};
 use intro_cube_wgpu::scenarios::simple_cube::SimpleCubeRotation;
 use intro_cube_wgpu::{draw_context, scenarios};
 use log::{debug, info};
@@ -109,7 +108,7 @@ async fn async_main() {
     let scenario_start = Instant::now();
     let mut last_draw_instant = scenario_start;
     let draw_period_target = Duration::from_secs_f64(1.0 / TARGET_DRAW_FPS);
-    let mut camera = OrthogonalCamera::new();
+    let mut winit_camera = WinitCameraAdapter::new(Camera::orthogonal());
 
     event_loop.run(move |event, _target, control_flow| match event {
         Event::WindowEvent {
@@ -126,39 +125,13 @@ async fn async_main() {
             debug!("Window resized");
         }
         Event::WindowEvent {
-            event:
-                WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            virtual_keycode: Some(keycode),
-                            ..
-                        },
-                    ..
-                },
+            event: WindowEvent::KeyboardInput { ref input, .. },
             ..
         } => {
-            match keycode {
-                VirtualKeyCode::Up => camera.move_z(0.1),
-                VirtualKeyCode::Down => camera.move_z(-0.1),
-                VirtualKeyCode::Left => camera.move_x(-0.1),
-                VirtualKeyCode::Right => camera.move_x(0.1),
-                VirtualKeyCode::PageUp => camera.move_y(0.1),
-                VirtualKeyCode::PageDown => camera.move_y(-0.1),
-                _ => {}
-            };
-            dbg!(keycode);
+            winit_camera.keyboard_event_listener(input);
         }
-        Event::DeviceEvent {
-            event: mouse_motion @ DeviceEvent::MouseMotion { .. },
-            ..
-        } => {
-            dbg!(mouse_motion);
-        }
-        Event::DeviceEvent {
-            event: mouse_wheel @ DeviceEvent::MouseWheel { .. },
-            ..
-        } => {
-            dbg!(mouse_wheel);
+        Event::DeviceEvent { ref event, .. } => {
+            winit_camera.mouse_event_listener(event);
         }
         Event::MainEventsCleared => {
             let since_last_draw = last_draw_instant.elapsed();
@@ -180,7 +153,8 @@ async fn async_main() {
                     update_delta,
                 },
             );
-            draw_context.set_projection(&camera);
+            winit_camera.update();
+            draw_context.set_projection(winit_camera.get_camera_matrix());
             draw_context.render_scene(&scenario).unwrap();
         }
         _ => {}
