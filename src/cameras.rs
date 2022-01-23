@@ -22,25 +22,65 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-use cgmath::SquareMatrix;
-use cgmath::{Matrix4, Vector3};
+use cgmath::{vec3, Matrix4, Vector3};
+use cgmath::{Ortho, Point3};
+use log::debug;
 use std::collections::BTreeSet;
 use winit::event::{DeviceEvent, ElementState, KeyboardInput, VirtualKeyCode};
 
+pub fn camera_orthogonal_default() -> Camera {
+    Camera::orthogonal(
+        16.0,
+        9.0,
+        Point3 {
+            x: 0.0,
+            y: 0.0,
+            z: -10.0,
+        },
+        Point3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        Vector3 {
+            x: 0.0,
+            y: 1.0,
+            z: 0.0,
+        },
+    )
+}
+
+#[derive(Debug)]
 pub struct Camera {
     pub projection: Matrix4<f32>,
     pub view: Matrix4<f32>,
 }
 
 impl Camera {
-    pub fn orthogonal() -> Self {
+    pub fn orthogonal(
+        width: f32,
+        height: f32,
+        eye: Point3<f32>,
+        center: Point3<f32>,
+        up: Vector3<f32>,
+    ) -> Self {
         Camera {
-            projection: Matrix4::identity(),
-            view: Matrix4::identity(),
+            projection: Matrix4::from(Ortho {
+                left: -width / 2.0,
+                right: width / 2.0,
+                bottom: -height / 2.0,
+                top: height / 2.0,
+                near: 0.,
+                far: 1000.0,
+            }),
+            view: Matrix4::look_at_lh(eye, center, up),
         }
     }
     pub fn get_camera_matrix(&self) -> Matrix4<f32> {
-        self.projection * self.view
+        let to_rh_coords = Matrix4::from_nonuniform_scale(1., 1., -1.);
+        let to_webgpu_ndc_coords = Matrix4::from_translation(vec3(0., 0., 0.5))
+            * Matrix4::from_nonuniform_scale(1., 1., 0.5);
+        to_webgpu_ndc_coords * self.projection * to_rh_coords * self.view
     }
     fn move_z(&mut self, val: f32) {
         self.view = Matrix4::from_translation(Vector3::new(0., 0., -val)) * self.view;
@@ -74,9 +114,7 @@ impl WinitCameraAdapter {
         self.camera.get_camera_matrix()
     }
 
-    pub fn mouse_event_listener(&mut self, input: &DeviceEvent) {
-        dbg!(input);
-    }
+    pub fn mouse_event_listener(&mut self, _input: &DeviceEvent) {}
 
     pub fn keyboard_event_listener(&mut self, input: &KeyboardInput) {
         match input.virtual_keycode {
@@ -92,6 +130,9 @@ impl WinitCameraAdapter {
     }
 
     pub fn update(&mut self) {
+        if self.enabled_keys.is_empty() {
+            return;
+        }
         for key in self.enabled_keys.iter() {
             match *key {
                 VirtualKeyCode::Up => self.camera.move_z(self.key_speed),
@@ -103,6 +144,7 @@ impl WinitCameraAdapter {
                 _ => {}
             };
         }
+        debug!("{:?}", -self.as_ref().view);
     }
 }
 
