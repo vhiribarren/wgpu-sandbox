@@ -22,11 +22,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-use cgmath::{vec3, Matrix4, Vector3};
+use cgmath::{vec3, Matrix4, PerspectiveFov, Rad, Vector3};
 use cgmath::{Ortho, Point3};
 use lazy_static::lazy_static;
 use log::debug;
 use std::collections::BTreeSet;
+use std::f32::consts::PI;
 use winit::event::{DeviceEvent, ElementState, KeyboardInput, VirtualKeyCode};
 
 lazy_static! {
@@ -35,26 +36,106 @@ lazy_static! {
         Matrix4::from_translation(vec3(0., 0., 0.5)) * Matrix4::from_nonuniform_scale(1., 1., 0.5);
 }
 
-pub fn camera_orthogonal_default() -> Camera {
-    Camera::orthogonal(
-        16.0,
-        9.0,
-        Point3 {
-            x: 0.0,
-            y: 0.0,
-            z: -10.0,
-        },
-        Point3 {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-        },
-        Vector3 {
-            x: 0.0,
-            y: 1.0,
-            z: 0.0,
-        },
-    )
+pub struct OrthogonalConfig {
+    pub width: f32,
+    pub height: f32,
+    pub eye: Point3<f32>,
+    pub center: Point3<f32>,
+    pub up: Vector3<f32>,
+    pub near: f32,
+    pub far: f32,
+}
+
+impl Default for OrthogonalConfig {
+    fn default() -> Self {
+        OrthogonalConfig {
+            width: 16.0 / 4.0,
+            height: 9.0 / 4.0,
+            eye: Point3 {
+                x: 0.0,
+                y: 0.0,
+                z: -10.0,
+            },
+            center: Point3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            up: Vector3 {
+                x: 0.0,
+                y: 1.0,
+                z: 0.0,
+            },
+            near: 0.,
+            far: 1_000.0,
+        }
+    }
+}
+
+impl From<OrthogonalConfig> for Camera {
+    fn from(config: OrthogonalConfig) -> Self {
+        Camera {
+            projection: Matrix4::from(Ortho {
+                left: -config.width / 2.0,
+                right: config.width / 2.0,
+                bottom: -config.height / 2.0,
+                top: config.height / 2.0,
+                near: config.near,
+                far: config.far,
+            }),
+            view: Matrix4::look_at_lh(config.eye, config.center, config.up),
+        }
+    }
+}
+
+pub struct PerspectiveConfig {
+    pub fovy: f32,
+    pub aspect: f32,
+    pub eye: Point3<f32>,
+    pub center: Point3<f32>,
+    pub up: Vector3<f32>,
+    pub near: f32,
+    pub far: f32,
+}
+
+impl Default for PerspectiveConfig {
+    fn default() -> Self {
+        PerspectiveConfig {
+            fovy: PI / 4.0,
+            aspect: 16. / 9.,
+            near: 0.1,
+            far: 1_000.0,
+            eye: Point3 {
+                x: 0.0,
+                y: 0.0,
+                z: -5.0,
+            },
+            center: Point3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            up: Vector3 {
+                x: 0.0,
+                y: 1.0,
+                z: 0.0,
+            },
+        }
+    }
+}
+
+impl From<PerspectiveConfig> for Camera {
+    fn from(config: PerspectiveConfig) -> Self {
+        Camera {
+            projection: Matrix4::from(PerspectiveFov {
+                fovy: Rad(config.fovy),
+                aspect: config.aspect,
+                near: config.near,
+                far: config.far,
+            }),
+            view: Matrix4::look_at_lh(config.eye, config.center, config.up),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -64,27 +145,8 @@ pub struct Camera {
 }
 
 impl Camera {
-    pub fn orthogonal(
-        width: f32,
-        height: f32,
-        eye: Point3<f32>,
-        center: Point3<f32>,
-        up: Vector3<f32>,
-    ) -> Self {
-        Camera {
-            projection: Matrix4::from(Ortho {
-                left: -width / 2.0,
-                right: width / 2.0,
-                bottom: -height / 2.0,
-                top: height / 2.0,
-                near: 0.,
-                far: 1000.0,
-            }),
-            view: Matrix4::look_at_lh(eye, center, up),
-        }
-    }
     pub fn get_camera_matrix(&self) -> Matrix4<f32> {
-        (*TO_RH_COORDS) * self.projection * (*TO_RH_COORDS) * self.view
+        (*TO_WEBGPU_NDCS) * self.projection * (*TO_RH_COORDS) * self.view
     }
     fn move_z(&mut self, val: f32) {
         self.view = Matrix4::from_translation(Vector3::new(0., 0., -val)) * self.view;

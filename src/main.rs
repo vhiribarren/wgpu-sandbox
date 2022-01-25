@@ -28,7 +28,7 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
 
 use crate::scenarios::{Scenario, UpdateInterval};
-use intro_cube_wgpu::cameras::{camera_orthogonal_default, WinitCameraAdapter};
+use intro_cube_wgpu::cameras::{Camera, OrthogonalConfig, PerspectiveConfig, WinitCameraAdapter};
 use intro_cube_wgpu::scenarios::simple_cube::SimpleCubeRotation;
 use intro_cube_wgpu::{draw_context, scenarios};
 use log::{debug, info};
@@ -108,7 +108,12 @@ async fn async_main() {
     let scenario_start = Instant::now();
     let mut last_draw_instant = scenario_start;
     let draw_period_target = Duration::from_secs_f64(1.0 / TARGET_DRAW_FPS);
-    let mut winit_camera = WinitCameraAdapter::new(camera_orthogonal_default());
+    let mut winit_camera = WinitCameraAdapter::new(Camera::from(
+         PerspectiveConfig {
+        //OrthogonalConfig {
+            ..Default::default()
+        },
+    ));
 
     event_loop.run(move |event, _target, control_flow| match event {
         Event::WindowEvent {
