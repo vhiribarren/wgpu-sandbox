@@ -31,7 +31,7 @@ use std::f32::consts::PI;
 use winit::event::{DeviceEvent, ElementState, KeyboardInput, VirtualKeyCode};
 
 lazy_static! {
-    static ref TO_RH_COORDS: Matrix4<f32> = Matrix4::from_nonuniform_scale(1., 1., -1.);
+    static ref SWITCH_Z_AXIS: Matrix4<f32> = Matrix4::from_nonuniform_scale(1., 1., -1.);
     static ref TO_WEBGPU_NDCS: Matrix4<f32> =
         Matrix4::from_translation(vec3(0., 0., 0.5)) * Matrix4::from_nonuniform_scale(1., 1., 0.5);
 }
@@ -146,7 +146,7 @@ pub struct Camera {
 
 impl Camera {
     pub fn get_camera_matrix(&self) -> Matrix4<f32> {
-        (*TO_WEBGPU_NDCS) * self.projection * (*TO_RH_COORDS) * self.view
+        (*TO_WEBGPU_NDCS) * self.projection * (*SWITCH_Z_AXIS) * self.view
     }
     fn move_z(&mut self, val: f32) {
         self.view = Matrix4::from_translation(Vector3::new(0., 0., -val)) * self.view;
@@ -157,22 +157,35 @@ impl Camera {
     fn move_y(&mut self, val: f32) {
         self.view = Matrix4::from_translation(Vector3::new(0., -val, 0.)) * self.view;
     }
+    fn pan(&mut self, val: f32) {
+        self.view = Matrix4::from_angle_y(Rad(-val)) * self.view;
+    }
+    fn tilt(&mut self, val: f32) {
+        self.view = Matrix4::from_angle_x(Rad(-val)) * self.view;
+    }
+    #[allow(dead_code)]
+    fn roll(&mut self, val: f32) {
+        self.view = Matrix4::from_angle_z(Rad(-val)) * self.view;
+    }
 }
 
 pub struct WinitCameraAdapter {
     camera: Camera,
     enabled_keys: BTreeSet<VirtualKeyCode>,
     key_speed: f32,
+    rotation_speed: f32,
 }
 
 impl WinitCameraAdapter {
     const DEFAULT_KEY_SPEED: f32 = 0.03;
+    const DEFAULT_ROTATION_SPEED: f32 = 1.0/500.0;
 
     pub fn new(camera: Camera) -> Self {
         WinitCameraAdapter {
             camera,
             enabled_keys: BTreeSet::new(),
             key_speed: Self::DEFAULT_KEY_SPEED,
+            rotation_speed: Self::DEFAULT_ROTATION_SPEED,
         }
     }
 
@@ -180,7 +193,19 @@ impl WinitCameraAdapter {
         self.camera.get_camera_matrix()
     }
 
-    pub fn mouse_event_listener(&mut self, _input: &DeviceEvent) {}
+    pub fn mouse_event_listener(&mut self, event: &DeviceEvent) {
+        match event {
+            DeviceEvent::MouseMotion { delta } => {
+                self.camera.pan(delta.0 as f32 * self.rotation_speed);
+                self.camera.tilt(delta.1 as f32 * self.rotation_speed);
+            }
+            DeviceEvent::MouseWheel { delta: _scroll_delta } => {
+            }
+            _ => {}
+        };
+
+
+    }
 
     pub fn keyboard_event_listener(&mut self, input: &KeyboardInput) {
         match input.virtual_keycode {

@@ -28,7 +28,7 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
 
 use crate::scenarios::{Scenario, UpdateInterval};
-use intro_cube_wgpu::cameras::{Camera, OrthogonalConfig, PerspectiveConfig, WinitCameraAdapter};
+use intro_cube_wgpu::cameras::{Camera, PerspectiveConfig, WinitCameraAdapter};
 use intro_cube_wgpu::scenarios::simple_cube::SimpleCubeRotation;
 use intro_cube_wgpu::{draw_context, scenarios};
 use log::{debug, info};
@@ -96,6 +96,7 @@ fn create_window<T>(event_loop: &EventLoop<T>) -> Result<Window, OsError> {
 async fn async_main() {
     let event_loop = EventLoop::new();
     let window = create_window(&event_loop).unwrap();
+    window.set_cursor_visible(false);
     dbg!(window.inner_size());
     let draw_context = draw_context::DrawContext::new(
         &window,
