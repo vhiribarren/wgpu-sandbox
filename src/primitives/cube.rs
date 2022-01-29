@@ -28,40 +28,47 @@ use crate::primitives::Object3D;
 use cgmath::Matrix4;
 use cgmath::SquareMatrix;
 
-const WHITE_COLOR: [f32; 3] = [1., 1., 1.];
+const COLOR_WHITE: [f32; 3] = [1., 1., 1.];
+const COLOR_BLACK: [f32; 3] = [0., 0., 0.];
+const COLOR_RED: [f32; 3] = [1., 0., 0.];
+const COLOR_GREEN: [f32; 3] = [0., 1., 0.];
+const COLOR_BLUE: [f32; 3] = [0., 0., 1.];
+const COLOR_YELLOW: [f32; 3] = [1., 1., 0.];
+const COLOR_CYAN: [f32; 3] = [0., 1., 1.];
+const COLOR_MAGENTA: [f32; 3] = [1., 0., 1.];
 
 const CUBE_VERTICES: &[Vertex] = &[
     Vertex {
         position: [-0.5, 0.5, -0.5],
-        color: WHITE_COLOR,
+        color: COLOR_MAGENTA,
     },
     Vertex {
         position: [0.5, 0.5, -0.5],
-        color: WHITE_COLOR,
+        color: COLOR_WHITE,
     },
     Vertex {
         position: [0.5, -0.5, -0.5],
-        color: WHITE_COLOR,
+        color: COLOR_RED,
     },
     Vertex {
         position: [-0.5, -0.5, -0.5],
-        color: WHITE_COLOR,
+        color: COLOR_BLACK,
     },
     Vertex {
         position: [-0.5, 0.5, 0.5],
-        color: WHITE_COLOR,
+        color: COLOR_BLUE,
     },
     Vertex {
         position: [0.5, 0.5, 0.5],
-        color: WHITE_COLOR,
+        color: COLOR_YELLOW,
     },
     Vertex {
         position: [0.5, -0.5, 0.5],
-        color: WHITE_COLOR,
+        color: COLOR_CYAN,
     },
     Vertex {
         position: [-0.5, -0.5, 0.5],
-        color: WHITE_COLOR,
+        color: COLOR_GREEN,
     },
 ];
 
@@ -70,19 +77,19 @@ const CUBE_INDICES: &[[u16; 3]] = &[
     [0, 2, 1],
     [0, 3, 2],
     // Back
-    [4, 5, 6],
-    [6, 7, 4],
+    [5, 7, 4],
+    [5, 6, 7],
     // Above
+    [4, 1, 5],
     [4, 0, 1],
-    [1, 5, 4],
     // Below
-    [7, 2, 3],
-    [2, 7, 6],
+    [6, 3, 7],
+    [6, 2, 3],
     // Left side
-    [3, 0, 4],
-    [4, 7, 3],
+    [7, 0, 4],
+    [7, 3, 0],
     // Right side
-    [5, 1, 2],
+    [2, 5, 1],
     [2, 6, 5],
 ];
 
