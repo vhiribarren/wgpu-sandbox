@@ -29,7 +29,7 @@ use winit::window::{Window, WindowBuilder};
 
 use crate::scenarios::{Scenario, UpdateInterval};
 use intro_cube_wgpu::cameras::{Camera, PerspectiveConfig, WinitCameraAdapter};
-use intro_cube_wgpu::scenarios::simple_cube::SimpleCubeRotation;
+use intro_cube_wgpu::scenarios::simple_cube::SimpleCube;
 use intro_cube_wgpu::{draw_context, scenarios};
 use log::{debug, info};
 use winit::error::OsError;

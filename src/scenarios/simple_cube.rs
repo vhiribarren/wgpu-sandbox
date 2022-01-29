@@ -32,11 +32,11 @@ const DEFAULT_SHADER_MAIN_VTX: &str = "vtx_main";
 
 const ROTATION_DEG_PER_S: f32 = 45.0;
 
-pub struct SimpleCubeRotation {
+pub struct SimpleCube {
     pub cube: Object3D,
 }
 
-impl SimpleCubeRotation {
+impl SimpleCube {
     pub fn new(draw_context: &DrawContext) -> Self {
         let default_shader_module =
             draw_context
@@ -60,11 +60,11 @@ impl SimpleCubeRotation {
             }],
         };
         let cube = cube::create_cube(draw_context, vertex_state, fragment_state);
-        SimpleCubeRotation { cube }
+        Self { cube }
     }
 }
 
-impl Scenario for SimpleCubeRotation {
+impl Scenario for SimpleCube {
     fn update(&mut self, context: &DrawContext, update_interval: &UpdateInterval) {
         let total_seconds = update_interval.scenario_start.elapsed().as_secs_f32();
         let new_rotation = ROTATION_DEG_PER_S * total_seconds;
