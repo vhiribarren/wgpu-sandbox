@@ -33,6 +33,7 @@ use intro_cube_wgpu::scenarios::simple_cube::SimpleCubeRotation;
 use intro_cube_wgpu::{draw_context, scenarios};
 use log::{debug, info};
 use winit::error::OsError;
+use intro_cube_wgpu::scenarios::simple_cube_flat::SimpleCubeFlat;
 
 const GLOBAL_LOG_FILTER: log::LevelFilter = log::LevelFilter::Info;
 #[cfg(target_arch = "wasm32")]
@@ -105,7 +106,7 @@ async fn async_main() {
     )
     .await
     .unwrap();
-    let mut scenario = SimpleCubeRotation::new(&draw_context);
+    let mut scenario = SimpleCubeFlat::new(&draw_context);
     let scenario_start = Instant::now();
     let mut last_draw_instant = scenario_start;
     let draw_period_target = Duration::from_secs_f64(1.0 / TARGET_DRAW_FPS);
