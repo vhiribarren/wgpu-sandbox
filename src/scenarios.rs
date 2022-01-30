@@ -35,6 +35,7 @@ pub struct UpdateInterval {
 }
 
 pub trait Scenario {
+    fn new(draw_context: &DrawContext) -> Self;
     fn update(&mut self, context: &DrawContext, update_interval: &UpdateInterval);
     fn render<'drawable, 'render>(
         &'drawable self,

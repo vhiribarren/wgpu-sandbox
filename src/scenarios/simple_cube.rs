@@ -36,8 +36,8 @@ pub struct SimpleCube {
     pub cube: Object3D,
 }
 
-impl SimpleCube {
-    pub fn new(draw_context: &DrawContext) -> Self {
+impl Scenario for SimpleCube {
+    fn new(draw_context: &DrawContext) -> Self {
         let default_shader_module =
             draw_context
                 .device
@@ -62,9 +62,6 @@ impl SimpleCube {
         let cube = cube::create_cube(draw_context, vertex_state, fragment_state);
         Self { cube }
     }
-}
-
-impl Scenario for SimpleCube {
     fn update(&mut self, context: &DrawContext, update_interval: &UpdateInterval) {
         let total_seconds = update_interval.scenario_start.elapsed().as_secs_f32();
         let new_rotation = ROTATION_DEG_PER_S * total_seconds;

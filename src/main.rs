@@ -29,7 +29,6 @@ use winit::window::{Window, WindowBuilder};
 
 use crate::scenarios::{Scenario, UpdateInterval};
 use intro_cube_wgpu::cameras::{Camera, PerspectiveConfig, WinitCameraAdapter};
-use intro_cube_wgpu::scenarios::simple_cube::SimpleCube;
 use intro_cube_wgpu::{draw_context, scenarios};
 use log::{debug, info};
 use winit::error::OsError;
@@ -94,7 +93,7 @@ fn create_window<T>(event_loop: &EventLoop<T>) -> Result<Window, OsError> {
     }
 }
 
-async fn async_main() {
+async fn async_main<S: Scenario + 'static>() {
     let event_loop = EventLoop::new();
     let window = create_window(&event_loop).unwrap();
     window.set_cursor_visible(false);
@@ -106,7 +105,7 @@ async fn async_main() {
     )
     .await
     .unwrap();
-    let mut scenario = SimpleCubeFlat::new(&draw_context);
+    let mut scenario = S::new(&draw_context);
     let scenario_start = Instant::now();
     let mut last_draw_instant = scenario_start;
     let draw_period_target = Duration::from_secs_f64(1.0 / TARGET_DRAW_FPS);
@@ -169,15 +168,19 @@ async fn async_main() {
 }
 
 fn main() {
+    main_with_scenario::<SimpleCubeFlat>();
+}
+
+fn main_with_scenario<S: Scenario + 'static>() {
     init_log();
     info!("Init app");
-    let main_future = async_main();
+    let main_future = async_main::<S>();
     #[cfg(target_arch = "wasm32")]
-    {
-        wasm_bindgen_futures::spawn_local(main_future);
-    }
+        {
+            wasm_bindgen_futures::spawn_local(main_future);
+        }
     #[cfg(not(target_arch = "wasm32"))]
-    {
-        pollster::block_on(main_future);
-    }
+        {
+            pollster::block_on(main_future);
+        }
 }

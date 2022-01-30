@@ -36,8 +36,8 @@ pub struct SimpleTriangle {
     pub triangle: Object3D,
 }
 
-impl SimpleTriangle {
-    pub fn new(draw_context: &DrawContext) -> Self {
+impl Scenario for SimpleTriangle {
+    fn new(draw_context: &DrawContext) -> Self {
         let default_shader_module =
             draw_context
                 .device
@@ -62,9 +62,6 @@ impl SimpleTriangle {
         let triangle = triangle::create_triangle(draw_context, vertex_state, fragment_state);
         Self { triangle }
     }
-}
-
-impl Scenario for SimpleTriangle {
     fn update(&mut self, context: &DrawContext, update_interval: &UpdateInterval) {
         let total_seconds = update_interval.scenario_start.elapsed().as_secs_f32();
         let new_rotation = ROTATION_DEG_PER_S * total_seconds;
