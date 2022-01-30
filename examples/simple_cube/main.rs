@@ -22,23 +22,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-pub mod simple_triangle;
-pub mod simple_cube;
-pub mod simple_cube_flat;
+mod simple_cube;
 
-use crate::draw_context::DrawContext;
-use instant::{Duration, Instant};
+use intro_cube_wgpu::engine::main_with_scenario;
 
-pub struct UpdateInterval {
-    pub scenario_start: Instant,
-    pub update_delta: Duration,
-}
-
-pub trait Scenario {
-    fn new(draw_context: &DrawContext) -> Self;
-    fn update(&mut self, context: &DrawContext, update_interval: &UpdateInterval);
-    fn render<'drawable, 'render>(
-        &'drawable self,
-        render_pass: &'render mut wgpu::RenderPass<'drawable>,
-    );
+fn main() {
+    main_with_scenario::<simple_cube::SimpleCube>();
 }

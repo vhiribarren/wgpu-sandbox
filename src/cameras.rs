@@ -178,7 +178,7 @@ pub struct WinitCameraAdapter {
 
 impl WinitCameraAdapter {
     const DEFAULT_KEY_SPEED: f32 = 0.03;
-    const DEFAULT_ROTATION_SPEED: f32 = 1.0/500.0;
+    const DEFAULT_ROTATION_SPEED: f32 = 1.0 / 500.0;
 
     pub fn new(camera: Camera) -> Self {
         WinitCameraAdapter {
@@ -199,12 +199,11 @@ impl WinitCameraAdapter {
                 self.camera.pan(delta.0 as f32 * self.rotation_speed);
                 self.camera.tilt(delta.1 as f32 * self.rotation_speed);
             }
-            DeviceEvent::MouseWheel { delta: _scroll_delta } => {
-            }
+            DeviceEvent::MouseWheel {
+                delta: _scroll_delta,
+            } => {}
             _ => {}
         };
-
-
     }
 
     pub fn keyboard_event_listener(&mut self, input: &KeyboardInput) {

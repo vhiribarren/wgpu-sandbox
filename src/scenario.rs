@@ -22,9 +22,19 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-use intro_cube_wgpu::engine::main_with_scenario;
-use intro_cube_wgpu::main_scenario::SimpleCubeFlat;
+use crate::draw_context::DrawContext;
+use instant::{Duration, Instant};
 
-fn main() {
-    main_with_scenario::<SimpleCubeFlat>();
+pub struct UpdateInterval {
+    pub scenario_start: Instant,
+    pub update_delta: Duration,
+}
+
+pub trait Scenario {
+    fn new(draw_context: &DrawContext) -> Self;
+    fn update(&mut self, context: &DrawContext, update_interval: &UpdateInterval);
+    fn render<'drawable, 'render>(
+        &'drawable self,
+        render_pass: &'render mut wgpu::RenderPass<'drawable>,
+    );
 }

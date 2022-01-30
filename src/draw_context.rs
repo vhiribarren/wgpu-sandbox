@@ -23,7 +23,7 @@ SOFTWARE.
 */
 
 use crate::draw_context::Drawable::{Direct, Indexed};
-use crate::scenarios::Scenario;
+use crate::scenario::Scenario;
 use anyhow::anyhow;
 use log::debug;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
