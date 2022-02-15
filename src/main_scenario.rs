@@ -60,16 +60,33 @@ impl Scenario for SimpleCubeFlat {
                 write_mask: wgpu::ColorWrites::ALL,
             }],
         };
-        let mut cube_left = cube::create_cube(draw_context, vertex_state.clone(), fragment_state.clone());
-        let mut cube_right = cube::create_cube(draw_context, vertex_state.clone(), fragment_state.clone());
-        cube_left.apply_transform(draw_context, cgmath::Matrix4::from_translation(cgmath::Vector3::new(-0.5, 0.0, 5.0)));
-        cube_right.apply_transform(draw_context, cgmath::Matrix4::from_translation(cgmath::Vector3::new(0.5, 0.0, 0.0)));
-        Self { cube_left, cube_right }
+        let mut cube_left =
+            cube::create_cube(draw_context, vertex_state.clone(), fragment_state.clone());
+        let mut cube_right =
+            cube::create_cube(draw_context, vertex_state.clone(), fragment_state.clone());
+        cube_left.apply_transform(
+            draw_context,
+            cgmath::Matrix4::from_translation(cgmath::Vector3::new(-0.5, 0.0, 5.0)),
+        );
+        cube_right.apply_transform(
+            draw_context,
+            cgmath::Matrix4::from_translation(cgmath::Vector3::new(0.5, 0.0, 0.0)),
+        );
+        Self {
+            cube_left,
+            cube_right,
+        }
     }
     fn update(&mut self, context: &DrawContext, update_interval: &UpdateInterval) {
         let delta_rotation = ROTATION_DEG_PER_S * update_interval.update_delta.as_secs_f32();
-        self.cube_left.apply_transform(context, cgmath::Matrix4::from_angle_z(cgmath::Deg(delta_rotation)));
-        self.cube_right.apply_transform(context, cgmath::Matrix4::from_angle_y(cgmath::Deg(delta_rotation)));
+        self.cube_left.apply_transform(
+            context,
+            cgmath::Matrix4::from_angle_z(cgmath::Deg(delta_rotation)),
+        );
+        self.cube_right.apply_transform(
+            context,
+            cgmath::Matrix4::from_angle_y(cgmath::Deg(delta_rotation)),
+        );
     }
     fn render<'drawable, 'render>(
         &'drawable self,

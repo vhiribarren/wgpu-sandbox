@@ -161,7 +161,13 @@ impl Drawable {
                         polygon_mode: wgpu::PolygonMode::Fill, // wgpu::PolygonMode::Line
                         conservative: false,
                     },
-                    depth_stencil: None,
+                    depth_stencil: Some(wgpu::DepthStencilState {
+                        format: wgpu::TextureFormat::Depth32Float,
+                        depth_write_enabled: true,
+                        depth_compare: wgpu::CompareFunction::Less,
+                        stencil: Default::default(),
+                        bias: Default::default(),
+                    }),
                     multisample: Default::default(),
                     multiview: None,
                 });
@@ -234,6 +240,8 @@ pub struct DrawContext<'a> {
     surface: wgpu::Surface,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
+    depth_texture: wgpu::Texture,
+    depth_texture_view: wgpu::TextureView,
     pub queue: wgpu::Queue,
     pub transform_bind_group_layout: wgpu::BindGroupLayout,
     pub device: wgpu::Device,
@@ -325,7 +333,20 @@ impl DrawContext<'_> {
             bind_group_layouts: &[&camera_bind_group_layout, &transform_bind_group_layout],
             push_constant_ranges: &[],
         });
-
+        let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Depth Texture"),
+            size: wgpu::Extent3d {
+                width: config.width,
+                height: config.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT, // | wgpu::TextureUsages::TEXTURE_BINDING,
+        });
+        let depth_texture_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
         Ok(DrawContext {
             _adapter: adapter,
             surface,
@@ -337,6 +358,8 @@ impl DrawContext<'_> {
             transform_bind_group_layout,
             vertex_buffer_layout,
             pipeline_layout,
+            depth_texture,
+            depth_texture_view,
         })
     }
 
@@ -375,7 +398,14 @@ impl DrawContext<'_> {
                     store: true,
                 },
             }],
-            depth_stencil_attachment: None,
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.depth_texture_view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: true,
+                }),
+                stencil_ops: None,
+            }),
         });
         render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
         scene.render(&mut render_pass);
