@@ -42,6 +42,10 @@ impl Object3D {
     pub fn get_transform(&self) -> &Matrix4<f32> {
         &self.transform
     }
+    pub fn apply_transform(&mut self, context: &DrawContext, transform: Matrix4<f32>) {
+        self.transform = self.transform * transform ; // TODO Shouldn't it be the opposite? But in that case that does not work
+        self.drawable.set_transform(context, self.transform);
+    }
 }
 
 impl AsRef<Drawable> for Object3D {

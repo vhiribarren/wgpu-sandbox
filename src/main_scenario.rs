@@ -33,7 +33,8 @@ const DEFAULT_SHADER_MAIN_VTX: &str = "vtx_main";
 const ROTATION_DEG_PER_S: f32 = 45.0;
 
 pub struct SimpleCubeFlat {
-    pub cube: Object3D,
+    pub cube_left: Object3D,
+    pub cube_right: Object3D,
 }
 
 impl Scenario for SimpleCubeFlat {
@@ -59,23 +60,22 @@ impl Scenario for SimpleCubeFlat {
                 write_mask: wgpu::ColorWrites::ALL,
             }],
         };
-        let cube = cube::create_cube(draw_context, vertex_state, fragment_state);
-        Self { cube }
+        let mut cube_left = cube::create_cube(draw_context, vertex_state.clone(), fragment_state.clone());
+        let mut cube_right = cube::create_cube(draw_context, vertex_state.clone(), fragment_state.clone());
+        cube_left.apply_transform(draw_context, cgmath::Matrix4::from_translation(cgmath::Vector3::new(-0.5, 0.0, 5.0)));
+        cube_right.apply_transform(draw_context, cgmath::Matrix4::from_translation(cgmath::Vector3::new(0.5, 0.0, 0.0)));
+        Self { cube_left, cube_right }
     }
     fn update(&mut self, context: &DrawContext, update_interval: &UpdateInterval) {
-        let total_seconds = update_interval.scenario_start.elapsed().as_secs_f32();
-        let new_rotation = ROTATION_DEG_PER_S * total_seconds;
-        // Translation on z to be in the clipped space (between -w and w) and camera in front of the cube
-        let z_translation: cgmath::Matrix4<f32> =
-            cgmath::Matrix4::from_translation(cgmath::Vector3::new(0.0, 0.0, 1.0));
-        let transform: cgmath::Matrix4<f32> =
-            cgmath::Matrix4::from_angle_z(cgmath::Deg(new_rotation));
-        self.cube.set_transform(context, transform * z_translation);
+        let delta_rotation = ROTATION_DEG_PER_S * update_interval.update_delta.as_secs_f32();
+        self.cube_left.apply_transform(context, cgmath::Matrix4::from_angle_z(cgmath::Deg(delta_rotation)));
+        self.cube_right.apply_transform(context, cgmath::Matrix4::from_angle_y(cgmath::Deg(delta_rotation)));
     }
     fn render<'drawable, 'render>(
         &'drawable self,
         render_pass: &'render mut wgpu::RenderPass<'drawable>,
     ) {
-        self.cube.as_ref().render(render_pass);
+        self.cube_right.as_ref().render(render_pass);
+        self.cube_left.as_ref().render(render_pass);
     }
 }
