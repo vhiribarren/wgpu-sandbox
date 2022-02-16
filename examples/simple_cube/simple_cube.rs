@@ -22,9 +22,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-use intro_cube_wgpu::draw_context::DrawContext;
-use intro_cube_wgpu::primitives::{cube, Object3D};
-use intro_cube_wgpu::scenario::{Scenario, UpdateInterval};
+use demo_cube_wgpu::draw_context::DrawContext;
+use demo_cube_wgpu::primitives::{cube, Object3D};
+use demo_cube_wgpu::scenario::{Scenario, UpdateInterval};
 
 const DEFAULT_SHADER: &str = include_str!("../../src/shaders/default.wgsl");
 const DEFAULT_SHADER_MAIN_FRG: &str = "frg_main";
