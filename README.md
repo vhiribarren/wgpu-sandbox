@@ -9,7 +9,15 @@ Used technologies: Rust, winit, WebAssembly, WebGPU, WebGL.
 
     $ cargo run
 
-For the web version:
+There are also some examples in the `examples` directory:
+
+    $ cargo run --example simple_triangle
+
+For the web version, you must be sure you can compile to the WebAssembly target first:
+
+    $ rustup target add wasm32-unknown-unknown
+
+You can then launch the command:
 
     $ ./run-web.sh
 
