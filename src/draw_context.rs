@@ -228,7 +228,6 @@ impl Drawable {
         render_pass.set_bind_group(1, &base.transform_bind_group, &[]);
         render_pass.set_vertex_buffer(0, base.vertex_buffer.slice(..));
         render_pass.set_blend_constant(base.blend_color_opacity);
-        dbg!(base.blend_color_opacity);
         match self {
             Drawable::Direct(d) => {
                 render_pass.draw(0..d.vertex_count, 0..1);

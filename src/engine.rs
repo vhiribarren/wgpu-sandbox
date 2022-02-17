@@ -23,9 +23,9 @@ SOFTWARE.
 */
 
 use instant::{Duration, Instant};
-use winit::event::{Event, WindowEvent};
+use winit::event::{DeviceEvent, ElementState, Event, MouseButton, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
-use winit::window::{Window, WindowBuilder};
+use winit::window::{CursorIcon, Window, WindowBuilder};
 
 use crate::cameras::{Camera, PerspectiveConfig, WinitCameraAdapter};
 use crate::draw_context;
@@ -95,7 +95,7 @@ fn create_window<T>(event_loop: &EventLoop<T>) -> Result<Window, OsError> {
 async fn async_main<S: Scenario + 'static>() {
     let event_loop = EventLoop::new();
     let window = create_window(&event_loop).unwrap();
-    window.set_cursor_visible(false);
+    window.set_cursor_icon(CursorIcon::Grab);
     dbg!(window.inner_size());
     let draw_context = draw_context::DrawContext::new(
         &window,
@@ -104,6 +104,7 @@ async fn async_main<S: Scenario + 'static>() {
     )
     .await
     .unwrap();
+    let mut mouse_rotation_enabled = false;
     let mut scenario = S::new(&draw_context);
     let scenario_start = Instant::now();
     let mut last_draw_instant = scenario_start;
@@ -113,54 +114,86 @@ async fn async_main<S: Scenario + 'static>() {
         ..Default::default()
     }));
 
-    event_loop.run(move |event, _target, control_flow| match event {
-        Event::WindowEvent {
-            event: WindowEvent::CloseRequested,
-            ..
-        } => {
-            debug!("Closing app");
-            *control_flow = ControlFlow::Exit;
-        }
-        Event::WindowEvent {
-            event: WindowEvent::Resized(_),
-            ..
-        } => {
-            debug!("Window resized");
-        }
-        Event::WindowEvent {
-            event: WindowEvent::KeyboardInput { ref input, .. },
-            ..
-        } => {
-            winit_camera.keyboard_event_listener(input);
-        }
-        Event::DeviceEvent { ref event, .. } => {
-            winit_camera.mouse_event_listener(event);
-        }
-        Event::MainEventsCleared => {
-            let since_last_draw = last_draw_instant.elapsed();
-            if since_last_draw >= draw_period_target {
-                window.request_redraw();
-                *control_flow = ControlFlow::Poll;
-            } else {
-                *control_flow =
-                    ControlFlow::WaitUntil(Instant::now() + draw_period_target - since_last_draw);
+    event_loop.run(move |event, _target, control_flow| {
+        let mut mouse_button_manager = |state: ElementState| match state {
+            ElementState::Pressed => {
+                mouse_rotation_enabled = true;
+                window.set_cursor_visible(false);
+                let _ = window.set_cursor_grab(true);
             }
+            ElementState::Released => {
+                mouse_rotation_enabled = false;
+                window.set_cursor_visible(true);
+                let _ = window.set_cursor_grab(false);
+            }
+        };
+        match event {
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                ..
+            } => {
+                debug!("Closing app");
+                *control_flow = ControlFlow::Exit;
+            }
+            Event::WindowEvent {
+                event: WindowEvent::Resized(_),
+                ..
+            } => {
+                debug!("Window resized");
+            }
+            Event::WindowEvent {
+                event: WindowEvent::KeyboardInput { ref input, .. },
+                ..
+            } => {
+                winit_camera.keyboard_event_listener(input);
+            }
+            Event::WindowEvent {
+                event: WindowEvent::MouseInput { state, button, .. },
+                ..
+            } => {
+                // Works with WASM and browser canvas
+                if button == MouseButton::Left {
+                    mouse_button_manager(state);
+                }
+            }
+            Event::DeviceEvent { ref event, .. } => {
+                if let DeviceEvent::Button { button, state } = event {
+                    // Works with MacOS
+                    if *button == 0 {
+                        mouse_button_manager(*state);
+                    }
+                }
+                if mouse_rotation_enabled {
+                    winit_camera.mouse_event_listener(event);
+                }
+            }
+            Event::MainEventsCleared => {
+                let since_last_draw = last_draw_instant.elapsed();
+                if since_last_draw >= draw_period_target {
+                    window.request_redraw();
+                    *control_flow = ControlFlow::Poll;
+                } else {
+                    *control_flow = ControlFlow::WaitUntil(
+                        Instant::now() + draw_period_target - since_last_draw,
+                    );
+                }
+            }
+            Event::RedrawRequested(_) => {
+                let update_delta = last_draw_instant.elapsed();
+                last_draw_instant = Instant::now();
+                scenario.update(
+                    &draw_context,
+                    &UpdateInterval {
+                        scenario_start,
+                        update_delta,
+                    },
+                );
+                winit_camera.update();
+                draw_context.set_projection(winit_camera.get_camera_matrix());
+                draw_context.render_scene(&scenario).unwrap();
+            }
+            _ => {}
         }
-        Event::RedrawRequested(_) => {
-            let update_delta = last_draw_instant.elapsed();
-            last_draw_instant = Instant::now();
-            scenario.update(
-                &draw_context,
-                &UpdateInterval {
-                    scenario_start,
-                    update_delta,
-                },
-            );
-            winit_camera.update();
-            draw_context.set_projection(winit_camera.get_camera_matrix());
-            draw_context.render_scene(&scenario).unwrap();
-        }
-        _ => {}
     });
 }
 

@@ -11,7 +11,7 @@ chrono = { version = "0.4.19", features = ["wasmbind"] }
 fern = { version = "0.6.0", features = ["colored"] }
 log = "0.4.14"
 raw-window-handle = "0.4.2"
-winit = { version = "0.26.0" }
+winit = { version = "0.26.1" }
 instant = { version = "0.1.12", features = [ "wasm-bindgen"] }
 lazy_static = "1.4.0"
 
