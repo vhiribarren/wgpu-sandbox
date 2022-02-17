@@ -25,6 +25,5 @@ SOFTWARE.
 pub mod cameras;
 pub mod draw_context;
 pub mod engine;
-pub mod main_scenario;
 pub mod primitives;
 pub mod scenario;

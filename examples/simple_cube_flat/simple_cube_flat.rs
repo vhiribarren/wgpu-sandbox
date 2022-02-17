@@ -26,17 +26,17 @@ use demo_cube_wgpu::draw_context::DrawContext;
 use demo_cube_wgpu::primitives::{cube, Object3D};
 use demo_cube_wgpu::scenario::{Scenario, UpdateInterval};
 
-const DEFAULT_SHADER: &str = include_str!("../../src/shaders/flat.wgsl");
+const DEFAULT_SHADER: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/shaders/flat.wgsl"));
 const DEFAULT_SHADER_MAIN_FRG: &str = "frg_main";
 const DEFAULT_SHADER_MAIN_VTX: &str = "vtx_main";
 
 const ROTATION_DEG_PER_S: f32 = 45.0;
 
-pub struct SimpleCubeFlat {
+pub struct MainScenario {
     pub cube: Object3D,
 }
 
-impl Scenario for SimpleCubeFlat {
+impl Scenario for MainScenario {
     fn new(draw_context: &DrawContext) -> Self {
         let default_shader_module =
             draw_context

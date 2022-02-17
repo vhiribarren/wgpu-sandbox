@@ -22,10 +22,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-mod simple_triangle;
+mod simple_two_cubes;
 
 use demo_cube_wgpu::engine::main_with_scenario;
 
 fn main() {
-    main_with_scenario::<simple_triangle::MainScenario>();
+    main_with_scenario::<simple_two_cubes::MainScenario>();
 }

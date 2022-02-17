@@ -27,5 +27,5 @@ mod simple_cube;
 use demo_cube_wgpu::engine::main_with_scenario;
 
 fn main() {
-    main_with_scenario::<simple_cube::SimpleCube>();
+    main_with_scenario::<simple_cube::MainScenario>();
 }
