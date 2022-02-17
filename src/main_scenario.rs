@@ -26,6 +26,8 @@ use demo_cube_wgpu::draw_context::DrawContext;
 use demo_cube_wgpu::primitives::{cube, Object3D};
 use demo_cube_wgpu::scenario::{Scenario, UpdateInterval};
 
+use instant::Duration;
+
 const DEFAULT_SHADER: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/src/shaders/default.wgsl"
@@ -41,10 +43,11 @@ const FLAT_SHADER_MAIN_FRG: &str = "frg_main";
 const FLAT_SHADER_MAIN_VTX: &str = "vtx_main";
 
 const ROTATION_DEG_PER_S: f32 = 45.0;
+const SHADER_TRANSITION_PERIOD: Duration = Duration::from_secs(1);
 
 pub struct MainScenario {
-    pub cube_left: Object3D,
-    pub cube_right: Object3D,
+    pub cube_interpolated: Object3D,
+    pub cube_flat: Object3D,
 }
 
 impl Scenario for MainScenario {
@@ -66,7 +69,7 @@ impl Scenario for MainScenario {
             entry_point: DEFAULT_SHADER_MAIN_FRG,
             targets: &[wgpu::ColorTargetState {
                 format: draw_context.config.format,
-                blend: Some(wgpu::BlendState::REPLACE),
+                blend: None,
                 write_mask: wgpu::ColorWrites::ALL,
             }],
         };
@@ -82,48 +85,49 @@ impl Scenario for MainScenario {
             entry_point: FLAT_SHADER_MAIN_VTX,
             buffers: &[draw_context.vertex_buffer_layout.clone()],
         };
+        let blend_state = wgpu::BlendState {
+            color: wgpu::BlendComponent {
+                src_factor: wgpu::BlendFactor::Constant,
+                dst_factor: wgpu::BlendFactor::OneMinusConstant,
+                operation: wgpu::BlendOperation::Add,
+            },
+            alpha: Default::default(),
+        };
         let flat_fragment_state = wgpu::FragmentState {
             module: &flat_shader_module,
             entry_point: FLAT_SHADER_MAIN_FRG,
             targets: &[wgpu::ColorTargetState {
                 format: draw_context.config.format,
-                blend: Some(wgpu::BlendState::REPLACE),
+                blend: Some(blend_state),
                 write_mask: wgpu::ColorWrites::ALL,
             }],
         };
-        let mut cube_left =
+        let cube_interpolated =
             cube::create_cube(draw_context, default_vertex_state, default_fragment_state);
-        let mut cube_right =
-            cube::create_cube(draw_context, flat_vertex_state, flat_fragment_state);
-        cube_left.apply_transform(
-            draw_context,
-            cgmath::Matrix4::from_translation(cgmath::Vector3::new(-0.5, 0.0, 5.0)),
-        );
-        cube_right.apply_transform(
-            draw_context,
-            cgmath::Matrix4::from_translation(cgmath::Vector3::new(0.5, 0.0, 0.0)),
-        );
+        let cube_flat = cube::create_cube(draw_context, flat_vertex_state, flat_fragment_state);
         Self {
-            cube_left,
-            cube_right,
+            cube_interpolated,
+            cube_flat,
         }
     }
     fn update(&mut self, context: &DrawContext, update_interval: &UpdateInterval) {
         let delta_rotation = ROTATION_DEG_PER_S * update_interval.update_delta.as_secs_f32();
-        self.cube_left.apply_transform(
-            context,
-            cgmath::Matrix4::from_angle_z(cgmath::Deg(delta_rotation)),
-        );
-        self.cube_right.apply_transform(
-            context,
-            cgmath::Matrix4::from_angle_y(cgmath::Deg(delta_rotation)),
+        let transform = cgmath::Matrix4::from_angle_z(cgmath::Deg(delta_rotation))
+            * cgmath::Matrix4::from_angle_y(cgmath::Deg(delta_rotation));
+        self.cube_interpolated.apply_transform(context, transform);
+        self.cube_flat.apply_transform(context, transform);
+        self.cube_flat.set_opacity(
+            0.5 + f32::sin(
+                2. * update_interval.scenario_start.elapsed().as_secs_f32()
+                    / SHADER_TRANSITION_PERIOD.as_secs_f32(),
+            ) / 2_f32,
         );
     }
     fn render<'drawable, 'render>(
         &'drawable self,
         render_pass: &'render mut wgpu::RenderPass<'drawable>,
     ) {
-        self.cube_right.as_ref().render(render_pass);
-        self.cube_left.as_ref().render(render_pass);
+        self.cube_interpolated.as_ref().render(render_pass);
+        self.cube_flat.as_ref().render(render_pass);
     }
 }

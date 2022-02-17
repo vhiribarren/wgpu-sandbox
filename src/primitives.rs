@@ -32,6 +32,7 @@ use cgmath::SquareMatrix;
 pub struct Object3D {
     drawable: Drawable,
     transform: Matrix4<f32>,
+    opacity: f32,
 }
 
 impl Object3D {
@@ -39,19 +40,26 @@ impl Object3D {
         Object3D {
             drawable,
             transform: Matrix4::<f32>::identity(),
+            opacity: 1.0,
         }
     }
     pub fn set_transform(&mut self, context: &DrawContext, transform: Matrix4<f32>) {
         self.transform = transform;
         self.drawable.set_transform(context, self.transform);
     }
-    #[allow(dead_code)]
     pub fn get_transform(&self) -> &Matrix4<f32> {
         &self.transform
     }
     pub fn apply_transform(&mut self, context: &DrawContext, transform: Matrix4<f32>) {
         self.transform = self.transform * transform; // TODO Shouldn't it be the opposite? But in that case that does not work
         self.drawable.set_transform(context, self.transform);
+    }
+    pub fn set_opacity(&mut self, value: f32) {
+        self.opacity = value.clamp(0., 1.);
+        self.drawable.set_blend_color_opacity(self.opacity as f64);
+    }
+    pub fn get_opacity(&self) -> f32 {
+        self.opacity
     }
 }
 

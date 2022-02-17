@@ -78,6 +78,7 @@ struct BaseDrawable {
     vertex_buffer: wgpu::Buffer,
     transform_buffer: wgpu::Buffer,
     transform_bind_group: wgpu::BindGroup,
+    blend_color_opacity: wgpu::Color,
 }
 
 pub struct DirectRenderingDrawable {
@@ -164,7 +165,7 @@ impl Drawable {
                     depth_stencil: Some(wgpu::DepthStencilState {
                         format: wgpu::TextureFormat::Depth32Float,
                         depth_write_enabled: true,
-                        depth_compare: wgpu::CompareFunction::Less,
+                        depth_compare: wgpu::CompareFunction::LessEqual,
                         stencil: Default::default(),
                         bias: Default::default(),
                     }),
@@ -189,11 +190,13 @@ impl Drawable {
                     resource: transform_buffer.as_entire_binding(),
                 }],
             });
+        let blend_color_opacity = wgpu::Color::WHITE;
         BaseDrawable {
             render_pipeline,
             vertex_buffer,
             transform_buffer,
             transform_bind_group,
+            blend_color_opacity,
         }
     }
 
@@ -206,6 +209,16 @@ impl Drawable {
         );
     }
 
+    pub fn set_blend_color_opacity(&mut self, value: f64) {
+        let value = value.clamp(0., 1.);
+        self.as_mut().blend_color_opacity = wgpu::Color {
+            r: value,
+            g: value,
+            b: value,
+            a: 1.0,
+        }
+    }
+
     pub fn render<'drawable, 'render>(
         &'drawable self,
         render_pass: &'render mut wgpu::RenderPass<'drawable>,
@@ -214,6 +227,8 @@ impl Drawable {
         render_pass.set_pipeline(&base.render_pipeline);
         render_pass.set_bind_group(1, &base.transform_bind_group, &[]);
         render_pass.set_vertex_buffer(0, base.vertex_buffer.slice(..));
+        render_pass.set_blend_constant(base.blend_color_opacity);
+        dbg!(base.blend_color_opacity);
         match self {
             Drawable::Direct(d) => {
                 render_pass.draw(0..d.vertex_count, 0..1);
@@ -231,6 +246,15 @@ impl AsRef<BaseDrawable> for Drawable {
         match self {
             Self::Direct(d) => &d.base,
             Self::Indexed(d) => &d.base,
+        }
+    }
+}
+
+impl AsMut<BaseDrawable> for Drawable {
+    fn as_mut(&mut self) -> &mut BaseDrawable {
+        match self {
+            Self::Direct(d) => &mut d.base,
+            Self::Indexed(d) => &mut d.base,
         }
     }
 }
