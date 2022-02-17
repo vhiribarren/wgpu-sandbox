@@ -25,8 +25,6 @@ SOFTWARE.
 use crate::draw_context::Drawable;
 use crate::draw_context::{DrawContext, Vertex};
 use crate::primitives::Object3D;
-use cgmath::Matrix4;
-use cgmath::SquareMatrix;
 
 const TRIANGLE: [Vertex; 3] = [
     Vertex {
@@ -49,9 +47,5 @@ pub fn create_triangle(
     fragment_state: wgpu::FragmentState,
 ) -> Object3D {
     let drawable = Drawable::init_direct(context, &TRIANGLE, vertex_state, fragment_state);
-    let transform = Matrix4::<f32>::identity();
-    Object3D {
-        transform,
-        drawable,
-    }
+    Object3D::from_drawable(drawable)
 }

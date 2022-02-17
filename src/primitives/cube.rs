@@ -25,8 +25,6 @@ SOFTWARE.
 use crate::draw_context::Drawable;
 use crate::draw_context::{DrawContext, Vertex};
 use crate::primitives::Object3D;
-use cgmath::Matrix4;
-use cgmath::SquareMatrix;
 
 const COLOR_WHITE: [f32; 3] = [1., 1., 1.];
 const COLOR_BLACK: [f32; 3] = [0., 0., 0.];
@@ -128,9 +126,5 @@ pub fn create_cube(
         vertex_state,
         fragment_state,
     );
-    let transform = Matrix4::<f32>::identity();
-    Object3D {
-        transform,
-        drawable,
-    }
+    Object3D::from_drawable(drawable)
 }

@@ -27,6 +27,7 @@ pub mod triangle;
 
 use crate::draw_context::{DrawContext, Drawable};
 use cgmath::Matrix4;
+use cgmath::SquareMatrix;
 
 pub struct Object3D {
     drawable: Drawable,
@@ -34,6 +35,12 @@ pub struct Object3D {
 }
 
 impl Object3D {
+    pub fn from_drawable(drawable: Drawable) -> Self {
+        Object3D {
+            drawable,
+            transform: Matrix4::<f32>::identity(),
+        }
+    }
     pub fn set_transform(&mut self, context: &DrawContext, transform: Matrix4<f32>) {
         self.transform = transform;
         self.drawable.set_transform(context, self.transform);
