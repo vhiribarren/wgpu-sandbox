@@ -252,6 +252,8 @@ pub struct DrawContext<'a> {
 }
 
 impl DrawContext<'_> {
+    pub const BIND_GROUP_INDEX_CAMERA: u32 = 0;
+
     pub async fn new<'a, 'b>(
         window_handler: &'a impl raw_window_handle::HasRawWindowHandle,
         width: u32,
@@ -408,7 +410,7 @@ impl DrawContext<'_> {
                 stencil_ops: None,
             }),
         });
-        render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+        render_pass.set_bind_group(Self::BIND_GROUP_INDEX_CAMERA, &self.camera_bind_group, &[]);
         scene.render(&mut render_pass);
 
         drop(render_pass);
