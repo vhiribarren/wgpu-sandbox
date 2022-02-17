@@ -26,11 +26,17 @@ use demo_cube_wgpu::draw_context::DrawContext;
 use demo_cube_wgpu::primitives::{cube, Object3D};
 use demo_cube_wgpu::scenario::{Scenario, UpdateInterval};
 
-const DEFAULT_SHADER: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/shaders/default.wgsl"));
+const DEFAULT_SHADER: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/src/shaders/default.wgsl"
+));
 const DEFAULT_SHADER_MAIN_FRG: &str = "frg_main";
 const DEFAULT_SHADER_MAIN_VTX: &str = "vtx_main";
 
-const FLAT_SHADER: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/shaders/flat.wgsl"));
+const FLAT_SHADER: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/src/shaders/flat.wgsl"
+));
 const FLAT_SHADER_MAIN_FRG: &str = "frg_main";
 const FLAT_SHADER_MAIN_VTX: &str = "vtx_main";
 

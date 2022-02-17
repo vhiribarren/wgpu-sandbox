@@ -240,6 +240,7 @@ pub struct DrawContext<'a> {
     surface: wgpu::Surface,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
+    #[allow(dead_code)]
     depth_texture: wgpu::Texture,
     depth_texture_view: wgpu::TextureView,
     pub queue: wgpu::Queue,

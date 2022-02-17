@@ -26,7 +26,10 @@ use demo_cube_wgpu::draw_context::DrawContext;
 use demo_cube_wgpu::primitives::{triangle, Object3D};
 use demo_cube_wgpu::scenario::{Scenario, UpdateInterval};
 
-const DEFAULT_SHADER: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/shaders/default.wgsl"));
+const DEFAULT_SHADER: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/src/shaders/default.wgsl"
+));
 const DEFAULT_SHADER_MAIN_FRG: &str = "frg_main";
 const DEFAULT_SHADER_MAIN_VTX: &str = "vtx_main";
 
