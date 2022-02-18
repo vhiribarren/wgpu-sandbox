@@ -169,7 +169,10 @@ impl Drawable {
                         stencil: Default::default(),
                         bias: Default::default(),
                     }),
-                    multisample: Default::default(),
+                    multisample: wgpu::MultisampleState {
+                        count: context.get_multisample_count(),
+                        ..Default::default()
+                    },
                     multiview: None,
                 });
         let transform_buffer =
@@ -260,6 +263,9 @@ impl AsMut<BaseDrawable> for Drawable {
 
 pub struct DrawContext<'a> {
     _adapter: wgpu::Adapter,
+    multisample_enabled: bool,
+    multisample_count: u32,
+    multisample_texture: Option<wgpu::Texture>,
     surface: wgpu::Surface,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
@@ -275,6 +281,8 @@ pub struct DrawContext<'a> {
 }
 
 impl DrawContext<'_> {
+    const DEFAULT_MULTISAMPLE_ENABLED: bool = true;
+    const DEFAULT_MULTISAMPLE_COUNT: u32 = 4;
     pub const BIND_GROUP_INDEX_CAMERA: u32 = 0;
 
     pub async fn new<'a, 'b>(
@@ -282,6 +290,8 @@ impl DrawContext<'_> {
         width: u32,
         height: u32,
     ) -> anyhow::Result<DrawContext<'b>> {
+        let multisample_enabled = Self::DEFAULT_MULTISAMPLE_ENABLED;
+        let multisample_count = Self::DEFAULT_MULTISAMPLE_COUNT;
         let instance = wgpu::Instance::new(wgpu::Backends::all());
         let surface = unsafe { instance.create_surface(window_handler) };
         let adapter = instance
@@ -367,13 +377,36 @@ impl DrawContext<'_> {
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
-            sample_count: 1,
+            sample_count: match multisample_enabled {
+                true => multisample_count,
+                false => 1,
+            },
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Depth32Float,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT, // | wgpu::TextureUsages::TEXTURE_BINDING,
         });
         let depth_texture_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let multisample_texture = if multisample_enabled {
+            Some(device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("Mutisample Texture"),
+                size: wgpu::Extent3d {
+                    width: config.width,
+                    height: config.height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: multisample_count,
+                dimension: wgpu::TextureDimension::D2,
+                format: config.format,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            }))
+        } else {
+            None
+        };
         Ok(DrawContext {
+            multisample_enabled,
+            multisample_count,
+            multisample_texture,
             _adapter: adapter,
             surface,
             device,
@@ -389,6 +422,17 @@ impl DrawContext<'_> {
         })
     }
 
+    pub fn get_multisample_count(&self) -> u32 {
+        match self.multisample_enabled {
+            true => self.multisample_count,
+            false => 1,
+        }
+    }
+
+    pub fn is_multisample_enabled(&self) -> bool {
+        self.multisample_enabled
+    }
+
     pub fn set_projection(&self, transform: impl AsRef<[[f32; 4]; 4]>) {
         #[allow(clippy::unnecessary_cast)]
         self.queue.write_buffer(
@@ -400,10 +444,20 @@ impl DrawContext<'_> {
 
     pub fn render_scene<T: Scenario>(&self, scene: &T) -> anyhow::Result<()> {
         let displayed_texture = self.surface.get_current_texture()?;
-        let view = displayed_texture
+        let displayed_view = displayed_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
-
+        let (pass_view, pass_resolve_target) = if self.multisample_enabled {
+            let multisample_texture = self
+                .multisample_texture
+                .as_ref()
+                .expect("When multisample_enabled is at true, this optional should not be empty");
+            let multisample_view =
+                multisample_texture.create_view(&wgpu::TextureViewDescriptor::default());
+            (multisample_view, Some(&displayed_view))
+        } else {
+            (displayed_view, None)
+        };
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -412,8 +466,8 @@ impl DrawContext<'_> {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render pass"),
             color_attachments: &[wgpu::RenderPassColorAttachment {
-                view: &view,
-                resolve_target: None,
+                view: &pass_view,
+                resolve_target: pass_resolve_target,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color {
                         r: 0.0,
