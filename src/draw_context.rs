@@ -170,7 +170,7 @@ impl Drawable {
                         bias: Default::default(),
                     }),
                     multisample: wgpu::MultisampleState {
-                        count: context.get_multisample_count(),
+                        count: context.multisample_config.get_multisample_count(),
                         ..Default::default()
                     },
                     multiview: None,
@@ -261,22 +261,36 @@ impl AsMut<BaseDrawable> for Drawable {
     }
 }
 
-pub struct DrawContext<'a> {
-    _adapter: wgpu::Adapter,
+pub struct MultiSampleConfig {
     multisample_enabled: bool,
     multisample_count: u32,
+}
+
+impl MultiSampleConfig {
+    pub fn get_multisample_count(&self) -> u32 {
+        match self.multisample_enabled {
+            true => self.multisample_count,
+            false => 1,
+        }
+    }
+    pub fn is_multisample_enabled(&self) -> bool {
+        self.multisample_enabled
+    }
+}
+
+pub struct DrawContext<'a> {
+    _adapter: wgpu::Adapter,
     multisample_texture: Option<wgpu::Texture>,
     surface: wgpu::Surface,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
-    #[allow(dead_code)]
-    depth_texture: wgpu::Texture,
-    depth_texture_view: wgpu::TextureView,
+    pub multisample_config: MultiSampleConfig,
+    pub depth_texture: wgpu::Texture,
     pub queue: wgpu::Queue,
     pub transform_bind_group_layout: wgpu::BindGroupLayout,
     pub device: wgpu::Device,
     pub vertex_buffer_layout: wgpu::VertexBufferLayout<'a>,
-    pub config: wgpu::SurfaceConfiguration,
+    pub surface_config: wgpu::SurfaceConfiguration,
     pub pipeline_layout: wgpu::PipelineLayout,
 }
 
@@ -290,8 +304,10 @@ impl DrawContext<'_> {
         width: u32,
         height: u32,
     ) -> anyhow::Result<DrawContext<'b>> {
-        let multisample_enabled = Self::DEFAULT_MULTISAMPLE_ENABLED;
-        let multisample_count = Self::DEFAULT_MULTISAMPLE_COUNT;
+        let multisample_config = MultiSampleConfig {
+            multisample_enabled: Self::DEFAULT_MULTISAMPLE_ENABLED,
+            multisample_count: Self::DEFAULT_MULTISAMPLE_COUNT,
+        };
         let instance = wgpu::Instance::new(wgpu::Backends::all());
         let surface = unsafe { instance.create_surface(window_handler) };
         let adapter = instance
@@ -309,19 +325,19 @@ impl DrawContext<'_> {
                 &wgpu::DeviceDescriptor {
                     label: Some("Device Descriptor"),
                     features: wgpu::Features::empty(),
-                    limits: wgpu::Limits::downlevel_webgl2_defaults(),
+                    limits: wgpu::Limits::default(), //downlevel_webgl2_defaults(),
                 },
                 None,
             )
             .await?;
-        let config = wgpu::SurfaceConfiguration {
+        let surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface.get_preferred_format(&adapter).unwrap(),
             width,
             height,
             present_mode: wgpu::PresentMode::Fifo,
         };
-        surface.configure(&device, &config);
+        surface.configure(&device, &surface_config);
         let vertex_buffer_layout = Vertex::vertex_buffer_layout();
         let transform_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -369,68 +385,85 @@ impl DrawContext<'_> {
             bind_group_layouts: &[&camera_bind_group_layout, &transform_bind_group_layout],
             push_constant_ranges: &[],
         });
-        let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("Depth Texture"),
-            size: wgpu::Extent3d {
-                width: config.width,
-                height: config.height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: match multisample_enabled {
-                true => multisample_count,
-                false => 1,
-            },
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Depth32Float,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT, // | wgpu::TextureUsages::TEXTURE_BINDING,
-        });
-        let depth_texture_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let multisample_texture = if multisample_enabled {
-            Some(device.create_texture(&wgpu::TextureDescriptor {
-                label: Some("Mutisample Texture"),
-                size: wgpu::Extent3d {
-                    width: config.width,
-                    height: config.height,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: multisample_count,
-                dimension: wgpu::TextureDimension::D2,
-                format: config.format,
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            }))
-        } else {
-            None
-        };
+        let depth_texture =
+            Self::create_depth_texture(&device, &surface_config, &multisample_config);
+        let multisample_texture =
+            Self::create_multisample_texture(&device, &surface_config, &multisample_config);
+
         Ok(DrawContext {
-            multisample_enabled,
-            multisample_count,
+            multisample_config,
             multisample_texture,
             _adapter: adapter,
             surface,
             device,
             queue,
-            config,
+            surface_config,
             camera_buffer,
             camera_bind_group,
             transform_bind_group_layout,
             vertex_buffer_layout,
             pipeline_layout,
             depth_texture,
-            depth_texture_view,
         })
     }
 
-    pub fn get_multisample_count(&self) -> u32 {
-        match self.multisample_enabled {
-            true => self.multisample_count,
-            false => 1,
+    fn create_depth_texture(
+        device: &wgpu::Device,
+        surface_config: &wgpu::SurfaceConfiguration,
+        multisample_config: &MultiSampleConfig,
+    ) -> wgpu::Texture {
+        device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Depth Texture"),
+            size: wgpu::Extent3d {
+                width: surface_config.width,
+                height: surface_config.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: multisample_config.get_multisample_count(),
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT, // | wgpu::TextureUsages::TEXTURE_BINDING,
+        })
+    }
+
+    fn create_multisample_texture(
+        device: &wgpu::Device,
+        surface_config: &wgpu::SurfaceConfiguration,
+        multisample_config: &MultiSampleConfig,
+    ) -> Option<wgpu::Texture> {
+        match multisample_config.multisample_enabled {
+            true => Some(device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("Mutisample Texture"),
+                size: wgpu::Extent3d {
+                    width: surface_config.width,
+                    height: surface_config.height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: multisample_config.get_multisample_count(),
+                dimension: wgpu::TextureDimension::D2,
+                format: surface_config.format,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            })),
+            false => None,
         }
     }
 
-    pub fn is_multisample_enabled(&self) -> bool {
-        self.multisample_enabled
+    pub fn resize(&mut self, width: u32, height: u32) {
+        self.surface_config.width = width;
+        self.surface_config.height = height;
+        self.surface.configure(&self.device, &self.surface_config);
+        self.depth_texture = Self::create_depth_texture(
+            &self.device,
+            &self.surface_config,
+            &self.multisample_config,
+        );
+        self.multisample_texture = Self::create_multisample_texture(
+            &self.device,
+            &self.surface_config,
+            &self.multisample_config,
+        );
     }
 
     pub fn set_projection(&self, transform: impl AsRef<[[f32; 4]; 4]>) {
@@ -443,11 +476,14 @@ impl DrawContext<'_> {
     }
 
     pub fn render_scene<T: Scenario>(&self, scene: &T) -> anyhow::Result<()> {
+        let depth_texture_view = self
+            .depth_texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
         let displayed_texture = self.surface.get_current_texture()?;
         let displayed_view = displayed_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
-        let (pass_view, pass_resolve_target) = if self.multisample_enabled {
+        let (pass_view, pass_resolve_target) = if self.multisample_config.is_multisample_enabled() {
             let multisample_texture = self
                 .multisample_texture
                 .as_ref()
@@ -479,7 +515,7 @@ impl DrawContext<'_> {
                 },
             }],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.depth_texture_view,
+                view: &depth_texture_view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
                     store: true,

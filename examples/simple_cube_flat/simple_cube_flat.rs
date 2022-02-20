@@ -57,7 +57,7 @@ impl Scenario for MainScenario {
             module: &default_shader_module,
             entry_point: DEFAULT_SHADER_MAIN_FRG,
             targets: &[wgpu::ColorTargetState {
-                format: draw_context.config.format,
+                format: draw_context.surface_config.format,
                 blend: Some(wgpu::BlendState::REPLACE),
                 write_mask: wgpu::ColorWrites::ALL,
             }],

@@ -97,13 +97,14 @@ async fn async_main<S: Scenario + 'static>() {
     let window = create_window(&event_loop).unwrap();
     window.set_cursor_icon(CursorIcon::Grab);
     dbg!(window.inner_size());
-    let draw_context = draw_context::DrawContext::new(
+    let mut draw_context = draw_context::DrawContext::new(
         &window,
         window.inner_size().width,
         window.inner_size().height,
     )
     .await
     .unwrap();
+    let mut is_cursor_inside = false;
     let mut mouse_rotation_enabled = false;
     let mut scenario = S::new(&draw_context);
     let scenario_start = Instant::now();
@@ -115,16 +116,19 @@ async fn async_main<S: Scenario + 'static>() {
     }));
 
     event_loop.run(move |event, _target, control_flow| {
-        let mut mouse_button_manager = |state: ElementState| match state {
-            ElementState::Pressed => {
-                mouse_rotation_enabled = true;
-                window.set_cursor_visible(false);
-                let _ = window.set_cursor_grab(true);
+        let mut mouse_button_manager = |state: ElementState| {
+            if !is_cursor_inside {
+                return;
             }
-            ElementState::Released => {
-                mouse_rotation_enabled = false;
-                window.set_cursor_visible(true);
-                let _ = window.set_cursor_grab(false);
+            match state {
+                ElementState::Pressed => {
+                    mouse_rotation_enabled = true;
+                    window.set_cursor_visible(false);
+                }
+                ElementState::Released => {
+                    mouse_rotation_enabled = false;
+                    window.set_cursor_visible(true);
+                }
             }
         };
         match event {
@@ -136,16 +140,36 @@ async fn async_main<S: Scenario + 'static>() {
                 *control_flow = ControlFlow::Exit;
             }
             Event::WindowEvent {
-                event: WindowEvent::Resized(_),
+                event: WindowEvent::Resized(physical_size),
                 ..
             } => {
-                debug!("Window resized");
+                mouse_rotation_enabled = false;
+                window.set_cursor_visible(true);
+                draw_context.resize(physical_size.width, physical_size.height);
             }
             Event::WindowEvent {
                 event: WindowEvent::KeyboardInput { ref input, .. },
                 ..
             } => {
                 winit_camera.keyboard_event_listener(input);
+            }
+            Event::WindowEvent {
+                event: WindowEvent::Moved { .. },
+                ..
+            } => {
+                dbg!("Window moved");
+            }
+            Event::WindowEvent {
+                event: WindowEvent::CursorEntered { .. },
+                ..
+            } => {
+                is_cursor_inside = true;
+            }
+            Event::WindowEvent {
+                event: WindowEvent::CursorLeft { .. },
+                ..
+            } => {
+                is_cursor_inside = false;
             }
             Event::WindowEvent {
                 event: WindowEvent::MouseInput { state, button, .. },
