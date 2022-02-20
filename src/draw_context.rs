@@ -182,7 +182,7 @@ impl Drawable {
             context
                 .device
                 .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Camera Buffer"),
+                    label: Some("Transform Buffer"),
                     contents: bytemuck::cast_slice(&M4X4_ID_UNIFORM),
                     usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
                 });

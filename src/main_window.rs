@@ -92,11 +92,52 @@ fn create_window<T>(event_loop: &EventLoop<T>) -> Result<Window, OsError> {
     }
 }
 
+struct MouseState {
+    pub is_cursor_inside: bool,
+    mouse_rotation_enabled: bool,
+}
+
+impl MouseState {
+    pub fn new() -> Self {
+        MouseState {
+            is_cursor_inside: false,
+            mouse_rotation_enabled: false,
+        }
+    }
+    pub fn left_button_action(&mut self, action: ElementState, window: &Window) {
+        if !self.is_cursor_inside {
+            return;
+        }
+        match action {
+            ElementState::Pressed => {
+                self.mouse_rotation_enabled = true;
+                window.set_cursor_visible(false);
+            }
+            ElementState::Released => {
+                self.mouse_rotation_enabled = false;
+                window.set_cursor_visible(true);
+            }
+        }
+    }
+
+    pub fn resize_action(&mut self, window: &Window) {
+        self.mouse_rotation_enabled = false;
+        window.set_cursor_visible(true);
+    }
+
+    pub fn is_mouse_rotation_enabled(&self) -> bool {
+        self.mouse_rotation_enabled
+    }
+
+    pub fn move_action(&mut self) {
+        self.mouse_rotation_enabled = false;
+    }
+}
+
 async fn async_main<S: Scenario + 'static>() {
     let event_loop = EventLoop::new();
     let window = create_window(&event_loop).unwrap();
     window.set_cursor_icon(CursorIcon::Grab);
-    dbg!(window.inner_size());
     let mut draw_context = draw_context::DrawContext::new(
         &window,
         window.inner_size().width,
@@ -104,8 +145,7 @@ async fn async_main<S: Scenario + 'static>() {
     )
     .await
     .unwrap();
-    let mut is_cursor_inside = false;
-    let mut mouse_rotation_enabled = false;
+    let mut mouse_state = MouseState::new();
     let mut scenario = S::new(&draw_context);
     let scenario_start = Instant::now();
     let mut last_draw_instant = scenario_start;
@@ -116,21 +156,6 @@ async fn async_main<S: Scenario + 'static>() {
     }));
 
     event_loop.run(move |event, _target, control_flow| {
-        let mut mouse_button_manager = |state: ElementState| {
-            if !is_cursor_inside {
-                return;
-            }
-            match state {
-                ElementState::Pressed => {
-                    mouse_rotation_enabled = true;
-                    window.set_cursor_visible(false);
-                }
-                ElementState::Released => {
-                    mouse_rotation_enabled = false;
-                    window.set_cursor_visible(true);
-                }
-            }
-        };
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
@@ -143,8 +168,7 @@ async fn async_main<S: Scenario + 'static>() {
                 event: WindowEvent::Resized(physical_size),
                 ..
             } => {
-                mouse_rotation_enabled = false;
-                window.set_cursor_visible(true);
+                mouse_state.resize_action(&window);
                 draw_context.resize(physical_size.width, physical_size.height);
             }
             Event::WindowEvent {
@@ -158,18 +182,19 @@ async fn async_main<S: Scenario + 'static>() {
                 ..
             } => {
                 dbg!("Window moved");
+                mouse_state.move_action();
             }
             Event::WindowEvent {
                 event: WindowEvent::CursorEntered { .. },
                 ..
             } => {
-                is_cursor_inside = true;
+                mouse_state.is_cursor_inside = true;
             }
             Event::WindowEvent {
                 event: WindowEvent::CursorLeft { .. },
                 ..
             } => {
-                is_cursor_inside = false;
+                mouse_state.is_cursor_inside = false;
             }
             Event::WindowEvent {
                 event: WindowEvent::MouseInput { state, button, .. },
@@ -177,17 +202,17 @@ async fn async_main<S: Scenario + 'static>() {
             } => {
                 // Works with WASM and browser canvas
                 if button == MouseButton::Left {
-                    mouse_button_manager(state);
+                    mouse_state.left_button_action(state, &window);
                 }
             }
             Event::DeviceEvent { ref event, .. } => {
                 if let DeviceEvent::Button { button, state } = event {
                     // Works with MacOS
                     if *button == 0 {
-                        mouse_button_manager(*state);
+                        mouse_state.left_button_action(*state, &window);
                     }
                 }
-                if mouse_rotation_enabled {
+                if mouse_state.is_mouse_rotation_enabled() {
                     winit_camera.mouse_event_listener(event);
                 }
             }
