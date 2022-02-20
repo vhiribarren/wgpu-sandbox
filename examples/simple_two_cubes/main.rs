@@ -24,7 +24,7 @@ SOFTWARE.
 
 mod simple_two_cubes;
 
-use demo_cube_wgpu::engine::main_with_scenario;
+use demo_cube_wgpu::main_window::main_with_scenario;
 
 fn main() {
     main_with_scenario::<simple_two_cubes::MainScenario>();
