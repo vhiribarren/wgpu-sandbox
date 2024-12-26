@@ -25,15 +25,14 @@ SOFTWARE.
 use cgmath::{vec3, Matrix4, PerspectiveFov, Rad, Vector3};
 use cgmath::{Ortho, Point3};
 use log::{debug, warn};
-use winit::keyboard::{KeyCode, PhysicalKey};
 use std::collections::BTreeSet;
 use std::f32::consts::PI;
 use std::sync::LazyLock;
 use winit::event::{DeviceEvent, ElementState, KeyEvent};
+use winit::keyboard::{KeyCode, PhysicalKey};
 
-static SWITCH_Z_AXIS: LazyLock<Matrix4<f32>> = LazyLock::new(|| {
-    Matrix4::from_nonuniform_scale(1., 1., -1.)
-});
+static SWITCH_Z_AXIS: LazyLock<Matrix4<f32>> =
+    LazyLock::new(|| Matrix4::from_nonuniform_scale(1., 1., -1.));
 static TO_WEBGPU_NDCS: LazyLock<Matrix4<f32>> = LazyLock::new(|| {
     Matrix4::from_translation(vec3(0., 0., 0.5)) * Matrix4::from_nonuniform_scale(1., 1., 0.5)
 });

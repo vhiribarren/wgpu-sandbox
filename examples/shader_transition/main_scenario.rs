@@ -26,7 +26,7 @@ use demo_cube_wgpu::draw_context::DrawContext;
 use demo_cube_wgpu::primitives::{cube, Object3D};
 use demo_cube_wgpu::scenario::{Scenario, UpdateInterval};
 
-use instant::Duration;
+use web_time::Duration;
 
 const DEFAULT_SHADER: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),

@@ -123,10 +123,7 @@ impl Scenario for MainScenario {
             ) / 2_f32,
         );
     }
-    fn render<'drawable, 'render>(
-        &'drawable self,
-        render_pass: &'render mut wgpu::RenderPass<'drawable>,
-    ) {
+    fn render<'drawable>(&'drawable self, render_pass: &mut wgpu::RenderPass<'drawable>) {
         self.cube_interpolated.as_ref().render(render_pass);
         self.cube_flat.as_ref().render(render_pass);
     }

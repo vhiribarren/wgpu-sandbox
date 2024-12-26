@@ -227,10 +227,7 @@ impl Drawable {
         }
     }
 
-    pub fn render<'drawable, 'render>(
-        &'drawable self,
-        render_pass: &'render mut wgpu::RenderPass<'drawable>,
-    ) {
+    pub fn render<'drawable>(&'drawable self, render_pass: &mut wgpu::RenderPass<'drawable>) {
         let base = self.as_ref();
         render_pass.set_pipeline(&base.render_pipeline);
         render_pass.set_bind_group(1, &base.transform_bind_group, &[]);
@@ -364,20 +361,16 @@ impl DrawContext<'_> {
     const DEFAULT_MULTISAMPLE_COUNT: u32 = 4;
     pub const BIND_GROUP_INDEX_CAMERA: u32 = 0;
 
-    pub async fn new<'a>(
-        window: &'a Window,
-        width: u32,
-        height: u32,
-    ) -> anyhow::Result<DrawContext<'a>> {
+    pub async fn new(window: &Window, width: u32, height: u32) -> anyhow::Result<DrawContext<'_>> {
         let multisample_config = MultiSampleConfig {
             multisample_enabled: Self::DEFAULT_MULTISAMPLE_ENABLED,
             multisample_count: Self::DEFAULT_MULTISAMPLE_COUNT,
         };
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor{
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
         });
-        let surface =instance.create_surface(window).unwrap();
+        let surface = instance.create_surface(window).unwrap();
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: Default::default(),
@@ -399,14 +392,14 @@ impl DrawContext<'_> {
                     label: Some("Device Descriptor"),
                     required_features: wgpu::Features::empty(),
                     required_limits,
-                    memory_hints: wgpu::MemoryHints::Performance
+                    memory_hints: wgpu::MemoryHints::Performance,
                 },
                 None,
             )
-            .await.unwrap();
+            .await
+            .unwrap();
         let surface_caps = surface.get_capabilities(&adapter);
-        let surface_format = surface_caps
-            .formats[0];
+        let surface_format = surface_caps.formats[0];
         let surface_config = wgpu::SurfaceConfiguration {
             desired_maximum_frame_latency: 2,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,

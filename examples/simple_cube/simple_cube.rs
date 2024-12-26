@@ -1,7 +1,7 @@
 /*
 MIT License
 
-Copyright (c) 2021, 2022 Vincent Hiribarren
+Copyright (c) 2021, 2022, 2024, 2025 Vincent Hiribarren
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -30,8 +30,6 @@ const DEFAULT_SHADER: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/src/shaders/default.wgsl"
 ));
-const DEFAULT_SHADER_MAIN_FRG: &str = "frg_main";
-const DEFAULT_SHADER_MAIN_VTX: &str = "vtx_main";
 
 const ROTATION_DEG_PER_S: f32 = 45.0;
 
@@ -44,23 +42,26 @@ impl Scenario for MainScenario {
         let default_shader_module =
             draw_context
                 .device
-                .create_shader_module(&wgpu::ShaderModuleDescriptor {
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
                     label: Some("Fragment Shader"),
                     source: wgpu::ShaderSource::Wgsl(DEFAULT_SHADER.into()),
                 });
         let vertex_state = wgpu::VertexState {
             module: &default_shader_module,
-            entry_point: DEFAULT_SHADER_MAIN_VTX,
+            entry_point: None,
             buffers: &[draw_context.vertex_buffer_layout.clone()],
+            compilation_options: Default::default()
         };
         let fragment_state = wgpu::FragmentState {
             module: &default_shader_module,
-            entry_point: DEFAULT_SHADER_MAIN_FRG,
-            targets: &[wgpu::ColorTargetState {
+            entry_point: None,
+            targets: &[Some(wgpu::ColorTargetState {
                 format: draw_context.surface_config.format,
                 blend: Some(wgpu::BlendState::REPLACE),
                 write_mask: wgpu::ColorWrites::ALL,
-            }],
+            }),
+            ],
+            compilation_options: Default::default()
         };
         let cube = cube::create_cube(draw_context, vertex_state, fragment_state);
         Self { cube }

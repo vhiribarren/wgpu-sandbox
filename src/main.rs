@@ -24,8 +24,8 @@ SOFTWARE.
 
 mod main_scenario;
 
-use demo_cube_wgpu::main_window::main_with_scenario;
+use demo_cube_wgpu::launcher::launch_scenario;
 
 fn main() {
-    main_with_scenario::<main_scenario::MainScenario>();
+    launch_scenario::<main_scenario::MainScenario>();
 }

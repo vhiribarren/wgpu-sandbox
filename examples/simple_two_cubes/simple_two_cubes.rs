@@ -30,15 +30,11 @@ const DEFAULT_SHADER: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/src/shaders/default.wgsl"
 ));
-const DEFAULT_SHADER_MAIN_FRG: &str = "frg_main";
-const DEFAULT_SHADER_MAIN_VTX: &str = "vtx_main";
 
 const FLAT_SHADER: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/src/shaders/flat.wgsl"
 ));
-const FLAT_SHADER_MAIN_FRG: &str = "frg_main";
-const FLAT_SHADER_MAIN_VTX: &str = "vtx_main";
 
 const ROTATION_DEG_PER_S: f32 = 45.0;
 
@@ -52,44 +48,48 @@ impl Scenario for MainScenario {
         let default_shader_module =
             draw_context
                 .device
-                .create_shader_module(&wgpu::ShaderModuleDescriptor {
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
                     label: Some("Vertex Shader"),
                     source: wgpu::ShaderSource::Wgsl(DEFAULT_SHADER.into()),
                 });
         let default_vertex_state = wgpu::VertexState {
             module: &default_shader_module,
-            entry_point: DEFAULT_SHADER_MAIN_VTX,
+            entry_point: None,
             buffers: &[draw_context.vertex_buffer_layout.clone()],
+            compilation_options: Default::default(),
         };
         let default_fragment_state = wgpu::FragmentState {
             module: &default_shader_module,
-            entry_point: DEFAULT_SHADER_MAIN_FRG,
-            targets: &[wgpu::ColorTargetState {
+            entry_point: None,
+            targets: &[Some(wgpu::ColorTargetState {
                 format: draw_context.surface_config.format,
                 blend: Some(wgpu::BlendState::REPLACE),
                 write_mask: wgpu::ColorWrites::ALL,
-            }],
+            })],
+            compilation_options: Default::default(),
         };
         let flat_shader_module =
             draw_context
                 .device
-                .create_shader_module(&wgpu::ShaderModuleDescriptor {
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
                     label: Some("Vertex Shader"),
                     source: wgpu::ShaderSource::Wgsl(FLAT_SHADER.into()),
                 });
         let flat_vertex_state = wgpu::VertexState {
             module: &flat_shader_module,
-            entry_point: FLAT_SHADER_MAIN_VTX,
+            entry_point: None,
             buffers: &[draw_context.vertex_buffer_layout.clone()],
+            compilation_options: Default::default(),
         };
         let flat_fragment_state = wgpu::FragmentState {
             module: &flat_shader_module,
-            entry_point: FLAT_SHADER_MAIN_FRG,
-            targets: &[wgpu::ColorTargetState {
+            entry_point: None,
+            targets: &[Some(wgpu::ColorTargetState {
                 format: draw_context.surface_config.format,
                 blend: Some(wgpu::BlendState::REPLACE),
                 write_mask: wgpu::ColorWrites::ALL,
-            }],
+            })],
+            compilation_options: Default::default(),
         };
         let mut cube_left =
             cube::create_cube(draw_context, default_vertex_state, default_fragment_state);
