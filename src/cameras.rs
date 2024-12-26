@@ -1,7 +1,7 @@
 /*
 MIT License
 
-Copyright (c) 2022 Vincent Hiribarren
+Copyright (c) 2021, 2022, 2024, 2025 Vincent Hiribarren
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -24,17 +24,19 @@ SOFTWARE.
 
 use cgmath::{vec3, Matrix4, PerspectiveFov, Rad, Vector3};
 use cgmath::{Ortho, Point3};
-use lazy_static::lazy_static;
-use log::debug;
+use log::{debug, warn};
+use winit::keyboard::{KeyCode, PhysicalKey};
 use std::collections::BTreeSet;
 use std::f32::consts::PI;
-use winit::event::{DeviceEvent, ElementState, KeyboardInput, VirtualKeyCode};
+use std::sync::LazyLock;
+use winit::event::{DeviceEvent, ElementState, KeyEvent};
 
-lazy_static! {
-    static ref SWITCH_Z_AXIS: Matrix4<f32> = Matrix4::from_nonuniform_scale(1., 1., -1.);
-    static ref TO_WEBGPU_NDCS: Matrix4<f32> =
-        Matrix4::from_translation(vec3(0., 0., 0.5)) * Matrix4::from_nonuniform_scale(1., 1., 0.5);
-}
+static SWITCH_Z_AXIS: LazyLock<Matrix4<f32>> = LazyLock::new(|| {
+    Matrix4::from_nonuniform_scale(1., 1., -1.)
+});
+static TO_WEBGPU_NDCS: LazyLock<Matrix4<f32>> = LazyLock::new(|| {
+    Matrix4::from_translation(vec3(0., 0., 0.5)) * Matrix4::from_nonuniform_scale(1., 1., 0.5)
+});
 
 pub struct OrthogonalConfig {
     pub width: f32,
@@ -171,7 +173,7 @@ impl Camera {
 
 pub struct WinitCameraAdapter {
     camera: Camera,
-    enabled_keys: BTreeSet<VirtualKeyCode>,
+    enabled_keys: BTreeSet<KeyCode>,
     key_speed: f32,
     rotation_speed: f32,
 }
@@ -206,16 +208,15 @@ impl WinitCameraAdapter {
         };
     }
 
-    pub fn keyboard_event_listener(&mut self, input: &KeyboardInput) {
-        match input.virtual_keycode {
-            None => {}
-            Some(key) => {
-                if input.state == ElementState::Pressed {
-                    self.enabled_keys.insert(key);
-                } else {
-                    self.enabled_keys.remove(&key);
-                }
-            }
+    pub fn keyboard_event_listener(&mut self, input: &KeyEvent) {
+        let PhysicalKey::Code(key_code) = input.physical_key else {
+            warn!("Strange key pushed");
+            return;
+        };
+        if input.state == ElementState::Pressed {
+            self.enabled_keys.insert(key_code);
+        } else {
+            self.enabled_keys.remove(&key_code);
         }
     }
 
@@ -225,12 +226,12 @@ impl WinitCameraAdapter {
         }
         for key in self.enabled_keys.iter() {
             match *key {
-                VirtualKeyCode::Up => self.camera.move_z(self.key_speed),
-                VirtualKeyCode::Down => self.camera.move_z(-self.key_speed),
-                VirtualKeyCode::Left => self.camera.move_x(-self.key_speed),
-                VirtualKeyCode::Right => self.camera.move_x(self.key_speed),
-                VirtualKeyCode::PageUp => self.camera.move_y(self.key_speed),
-                VirtualKeyCode::PageDown => self.camera.move_y(-self.key_speed),
+                KeyCode::ArrowUp => self.camera.move_z(self.key_speed),
+                KeyCode::ArrowDown => self.camera.move_z(-self.key_speed),
+                KeyCode::ArrowLeft => self.camera.move_x(-self.key_speed),
+                KeyCode::ArrowRight => self.camera.move_x(self.key_speed),
+                KeyCode::PageUp => self.camera.move_y(self.key_speed),
+                KeyCode::PageDown => self.camera.move_y(-self.key_speed),
                 _ => {}
             };
         }

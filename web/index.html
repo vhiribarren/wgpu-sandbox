@@ -21,12 +21,12 @@ SOFTWARE.
 -->
 
 <meta name="author" content="Vincent Hiribarren">
-<title>Intro Clock WGPU</title>
+<title>Demo Cube WGPU</title>
 
 <script type="module">
     import init from "./demo-cube-wgpu.js";
-    window.addEventListener("load", () => {
-        init();
+    init().then(() => {
+          console.log("WASM Loaded");
     });
 </script>
 

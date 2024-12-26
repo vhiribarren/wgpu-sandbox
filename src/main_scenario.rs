@@ -1,7 +1,7 @@
 /*
 MIT License
 
-Copyright (c) 2021, 2022 Vincent Hiribarren
+Copyright (c) 2021, 2022, 2024, 2025 Vincent Hiribarren
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -26,21 +26,17 @@ use demo_cube_wgpu::draw_context::DrawContext;
 use demo_cube_wgpu::primitives::{cube, Object3D};
 use demo_cube_wgpu::scenario::{Scenario, UpdateInterval};
 
-use instant::Duration;
+use web_time::Duration;
 
 const DEFAULT_SHADER: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/src/shaders/default.wgsl"
 ));
-const DEFAULT_SHADER_MAIN_FRG: &str = "frg_main";
-const DEFAULT_SHADER_MAIN_VTX: &str = "vtx_main";
 
 const FLAT_SHADER: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/src/shaders/flat.wgsl"
 ));
-const FLAT_SHADER_MAIN_FRG: &str = "frg_main";
-const FLAT_SHADER_MAIN_VTX: &str = "vtx_main";
 
 const ROTATION_DEG_PER_S: f32 = 45.0;
 const SHADER_TRANSITION_PERIOD: Duration = Duration::from_secs(1);
@@ -55,34 +51,37 @@ impl Scenario for MainScenario {
         let default_shader_module =
             draw_context
                 .device
-                .create_shader_module(&wgpu::ShaderModuleDescriptor {
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
                     label: Some("Vertex Shader"),
                     source: wgpu::ShaderSource::Wgsl(DEFAULT_SHADER.into()),
                 });
         let default_vertex_state = wgpu::VertexState {
             module: &default_shader_module,
-            entry_point: DEFAULT_SHADER_MAIN_VTX,
+            entry_point: None,
+            compilation_options: Default::default(),
             buffers: &[draw_context.vertex_buffer_layout.clone()],
         };
         let default_fragment_state = wgpu::FragmentState {
             module: &default_shader_module,
-            entry_point: DEFAULT_SHADER_MAIN_FRG,
-            targets: &[wgpu::ColorTargetState {
+            entry_point: None,
+            compilation_options: Default::default(),
+            targets: &[Some(wgpu::ColorTargetState {
                 format: draw_context.surface_config.format,
                 blend: None,
                 write_mask: wgpu::ColorWrites::ALL,
-            }],
+            })],
         };
         let flat_shader_module =
             draw_context
                 .device
-                .create_shader_module(&wgpu::ShaderModuleDescriptor {
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
                     label: Some("Vertex Shader"),
                     source: wgpu::ShaderSource::Wgsl(FLAT_SHADER.into()),
                 });
         let flat_vertex_state = wgpu::VertexState {
             module: &flat_shader_module,
-            entry_point: FLAT_SHADER_MAIN_VTX,
+            entry_point: None,
+            compilation_options: Default::default(),
             buffers: &[draw_context.vertex_buffer_layout.clone()],
         };
         let blend_state = wgpu::BlendState {
@@ -95,12 +94,13 @@ impl Scenario for MainScenario {
         };
         let flat_fragment_state = wgpu::FragmentState {
             module: &flat_shader_module,
-            entry_point: FLAT_SHADER_MAIN_FRG,
-            targets: &[wgpu::ColorTargetState {
+            entry_point: None,
+            compilation_options: Default::default(),
+            targets: &[Some(wgpu::ColorTargetState {
                 format: draw_context.surface_config.format,
                 blend: Some(blend_state),
                 write_mask: wgpu::ColorWrites::ALL,
-            }],
+            })],
         };
         let cube_interpolated =
             cube::create_cube(draw_context, default_vertex_state, default_fragment_state);

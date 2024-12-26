@@ -1,7 +1,7 @@
 /*
 MIT License
 
-Copyright (c) 2021, 2022 Vincent Hiribarren
+Copyright (c) 2021, 2022, 2024, 2025 Vincent Hiribarren
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -23,7 +23,7 @@ SOFTWARE.
 */
 
 use crate::draw_context::DrawContext;
-use instant::{Duration, Instant};
+use web_time::{Duration, Instant};
 
 pub struct UpdateInterval {
     pub scenario_start: Instant,

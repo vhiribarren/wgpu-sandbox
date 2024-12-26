@@ -1,7 +1,7 @@
 /*
 MIT License
 
-Copyright (c) 2021, 2022 Vincent Hiribarren
+Copyright (c) 2021, 2022, 2024, 2025 Vincent Hiribarren
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -22,7 +22,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-use instant::{Duration, Instant};
+use web_time::{Duration, Instant};
+
 use winit::event::{DeviceEvent, ElementState, Event, MouseButton, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{CursorIcon, Window, WindowBuilder};
@@ -44,6 +45,7 @@ fn init_log() {
     let level_formatter;
     #[cfg(target_arch = "wasm32")]
     {
+        std::panic::set_hook(Box::new(console_error_panic_hook::hook));
         level_formatter = |level| level;
         builder = builder.chain(fern::Output::call(console_log::log));
     }
@@ -77,6 +79,7 @@ fn create_window<T>(event_loop: &EventLoop<T>) -> Result<Window, OsError> {
     #[cfg(target_arch = "wasm32")]
     {
         use wasm_bindgen::JsCast;
+        use winit::dpi::PhysicalSize;
         use winit::platform::web::WindowBuilderExtWebSys;
         let dom_window = web_sys::window().unwrap();
         let dom_document = dom_window.document().unwrap();
@@ -84,6 +87,7 @@ fn create_window<T>(event_loop: &EventLoop<T>) -> Result<Window, OsError> {
         let canvas = dom_canvas.dyn_into::<web_sys::HtmlCanvasElement>().ok();
         WindowBuilder::default()
             .with_canvas(canvas)
+            .with_inner_size(PhysicalSize::new(450, 400))
             .build(event_loop)
     }
     #[cfg(not(target_arch = "wasm32"))]
@@ -134,8 +138,8 @@ impl MouseState {
     }
 }
 
-async fn async_main<S: Scenario + 'static>() {
-    let event_loop = EventLoop::new();
+pub async fn async_main<S: Scenario + 'static>() {
+    let event_loop = EventLoop::new().unwrap();
     let window = create_window(&event_loop).unwrap();
     window.set_cursor_icon(CursorIcon::Grab);
     let mut draw_context = draw_context::DrawContext::new(
@@ -155,14 +159,14 @@ async fn async_main<S: Scenario + 'static>() {
         ..Default::default()
     }));
 
-    event_loop.run(move |event, _target, control_flow| {
+    event_loop.run( |event, control_flow| {
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
             } => {
                 debug!("Closing app");
-                *control_flow = ControlFlow::Exit;
+                control_flow.exit();
             }
             Event::WindowEvent {
                 event: WindowEvent::Resized(physical_size),
@@ -172,10 +176,10 @@ async fn async_main<S: Scenario + 'static>() {
                 draw_context.resize(physical_size.width, physical_size.height);
             }
             Event::WindowEvent {
-                event: WindowEvent::KeyboardInput { ref input, .. },
+                event: WindowEvent::KeyboardInput { ref event, .. },
                 ..
             } => {
-                winit_camera.keyboard_event_listener(input);
+                winit_camera.keyboard_event_listener(event);
             }
             Event::WindowEvent {
                 event: WindowEvent::Moved { .. },
@@ -216,18 +220,21 @@ async fn async_main<S: Scenario + 'static>() {
                     winit_camera.mouse_event_listener(event);
                 }
             }
-            Event::MainEventsCleared => {
+            Event::AboutToWait => {
                 let since_last_draw = last_draw_instant.elapsed();
                 if since_last_draw >= draw_period_target {
                     window.request_redraw();
-                    *control_flow = ControlFlow::Poll;
+                    control_flow.set_control_flow(ControlFlow::Poll);
                 } else {
-                    *control_flow = ControlFlow::WaitUntil(
+                    control_flow.set_control_flow(ControlFlow::WaitUntil(
                         Instant::now() + draw_period_target - since_last_draw,
-                    );
+                    ));
                 }
             }
-            Event::RedrawRequested(_) => {
+            Event::WindowEvent {
+                event: WindowEvent::RedrawRequested { .. },
+                ..
+            } => {
                 let update_delta = last_draw_instant.elapsed();
                 last_draw_instant = Instant::now();
                 scenario.update(
@@ -243,7 +250,7 @@ async fn async_main<S: Scenario + 'static>() {
             }
             _ => {}
         }
-    });
+    }).unwrap();
 }
 
 pub fn main_with_scenario<S: Scenario + 'static>() {

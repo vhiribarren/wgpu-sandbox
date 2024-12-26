@@ -1,7 +1,7 @@
 /*
 MIT License
 
-Copyright (c) 2021, 2022 Vincent Hiribarren
+Copyright (c) 2021, 2022, 2024, 2025 Vincent Hiribarren
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,7 @@ use wgpu::{
     BindGroupLayoutDescriptor, BindingType, BufferBindingType, ShaderStages, SurfaceConfiguration,
     Texture,
 };
+use winit::window::Window;
 
 const M4X4_ID_UNIFORM: [[f32; 4]; 4] = [
     [1., 0., 0., 0.],
@@ -152,6 +153,7 @@ impl Drawable {
             context
                 .device
                 .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                    cache: None,
                     label: Some("Render Pipeline"),
                     layout: Some(&context.pipeline_layout),
                     vertex: vertex_state,
@@ -310,6 +312,7 @@ impl DeviceLocalExt for wgpu::Device {
             mip_level_count: 1,
             sample_count: multisample_config.get_multisample_count(),
             dimension: wgpu::TextureDimension::D2,
+            view_formats: &[],
             format: wgpu::TextureFormat::Depth32Float,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
         })
@@ -332,6 +335,7 @@ impl DeviceLocalExt for wgpu::Device {
                 sample_count: multisample_config.get_multisample_count(),
                 dimension: wgpu::TextureDimension::D2,
                 format: surface_config.format,
+                view_formats: &[],
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             })),
             false => None,
@@ -342,7 +346,7 @@ impl DeviceLocalExt for wgpu::Device {
 pub struct DrawContext<'a> {
     _adapter: wgpu::Adapter,
     multisample_texture: Option<wgpu::Texture>,
-    surface: wgpu::Surface,
+    surface: wgpu::Surface<'a>,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
     pub multisample_config: MultiSampleConfig,
@@ -360,17 +364,20 @@ impl DrawContext<'_> {
     const DEFAULT_MULTISAMPLE_COUNT: u32 = 4;
     pub const BIND_GROUP_INDEX_CAMERA: u32 = 0;
 
-    pub async fn new<'a, 'b>(
-        window_handler: &'a impl raw_window_handle::HasRawWindowHandle,
+    pub async fn new<'a>(
+        window: &'a Window,
         width: u32,
         height: u32,
-    ) -> anyhow::Result<DrawContext<'b>> {
+    ) -> anyhow::Result<DrawContext<'a>> {
         let multisample_config = MultiSampleConfig {
             multisample_enabled: Self::DEFAULT_MULTISAMPLE_ENABLED,
             multisample_count: Self::DEFAULT_MULTISAMPLE_COUNT,
         };
-        let instance = wgpu::Instance::new(wgpu::Backends::all());
-        let surface = unsafe { instance.create_surface(window_handler) };
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor{
+            backends: wgpu::Backends::all(),
+            ..Default::default()
+        });
+        let surface =instance.create_surface(window).unwrap();
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: Default::default(),
@@ -381,7 +388,7 @@ impl DrawContext<'_> {
             .ok_or_else(|| anyhow!("Could not create WebGPU adapter"))?;
         debug!("{:?}", adapter);
         debug!("{:?}", adapter.features());
-        let limits = if cfg!(target_arch = "wasm32") {
+        let required_limits = if cfg!(target_arch = "wasm32") {
             wgpu::Limits::downlevel_webgl2_defaults()
         } else {
             wgpu::Limits::default()
@@ -390,17 +397,24 @@ impl DrawContext<'_> {
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: Some("Device Descriptor"),
-                    features: wgpu::Features::empty(),
-                    limits,
+                    required_features: wgpu::Features::empty(),
+                    required_limits,
+                    memory_hints: wgpu::MemoryHints::Performance
                 },
                 None,
             )
-            .await?;
+            .await.unwrap();
+        let surface_caps = surface.get_capabilities(&adapter);
+        let surface_format = surface_caps
+            .formats[0];
         let surface_config = wgpu::SurfaceConfiguration {
+            desired_maximum_frame_latency: 2,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: surface.get_preferred_format(&adapter).unwrap(),
+            format: surface_format,
             width,
             height,
+            view_formats: vec![],
+            alpha_mode: wgpu::CompositeAlphaMode::Auto,
             present_mode: wgpu::PresentMode::Fifo,
         };
         surface.configure(&device, &surface_config);
@@ -519,7 +533,9 @@ impl DrawContext<'_> {
             });
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render pass"),
-            color_attachments: &[wgpu::RenderPassColorAttachment {
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &pass_view,
                 resolve_target: pass_resolve_target,
                 ops: wgpu::Operations {
@@ -529,14 +545,14 @@ impl DrawContext<'_> {
                         b: 0.5,
                         a: 1.0,
                     }),
-                    store: true,
+                    store: wgpu::StoreOp::Store,
                 },
-            }],
+            })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &depth_texture_view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
-                    store: true,
+                    store: wgpu::StoreOp::Store,
                 }),
                 stencil_ops: None,
             }),
