@@ -1,21 +1,13 @@
 use log::info;
 
-use crate::{gui::async_main, scenario::Scenario};
+use crate::{gui::init_event_loop, scenario::Scenario};
 
 const GLOBAL_LOG_FILTER: log::LevelFilter = log::LevelFilter::Info;
 
 pub fn launch_scenario<S: Scenario + 'static>() {
     init_log();
     info!("Init app");
-    let main_future = async_main::<S>();
-    #[cfg(target_arch = "wasm32")]
-    {
-        wasm_bindgen_futures::spawn_local(main_future);
-    }
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        pollster::block_on(main_future);
-    }
+    init_event_loop::<S>();
 }
 
 fn init_log() {

@@ -24,12 +24,11 @@ SOFTWARE.
 
 use std::sync::Arc;
 
-use pollster::FutureExt;
 use web_time::{Duration, Instant};
 
 use winit::application::ApplicationHandler;
 use winit::event::{DeviceEvent, ElementState, MouseButton, WindowEvent};
-use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy};
 use winit::window::{CursorIcon, Window, WindowId};
 
 use crate::cameras::{Camera, PerspectiveConfig, WinitCameraAdapter};
@@ -96,7 +95,7 @@ struct App<S> {
 }
 
 impl<S: Scenario> App<S> {
-    fn new(window: Window) -> Self {
+    async fn new_async(window: Window) -> Self {
         let window = Arc::new(window);
         let mouse_state = MouseState::new();
         let scenario_start = Instant::now();
@@ -111,7 +110,7 @@ impl<S: Scenario> App<S> {
             window.inner_size().width,
             window.inner_size().height,
         )
-        .block_on()
+        .await
         .unwrap();
         let scenario = S::new(&draw_context);
         Self {
@@ -127,43 +126,61 @@ impl<S: Scenario> App<S> {
     }
 }
 
-struct AppHandlerState<S> {
+struct AppHandlerState<S: 'static> {
     state: Option<App<S>>,
+    event_loop_proxy: Option<EventLoopProxy<App<S>>>,
 }
 
-impl<S> Default for AppHandlerState<S> {
-    fn default() -> Self {
-        Self { state: None }
+impl<S> AppHandlerState<S> {
+    fn new(event_loop: &EventLoop<App<S>>) -> Self {
+        Self {
+            state: None,
+            event_loop_proxy: Some(event_loop.create_proxy()),
+        }
     }
 }
 
-impl<S: Scenario> ApplicationHandler for AppHandlerState<S> {
+impl<S: Scenario + 'static> ApplicationHandler<App<S>> for AppHandlerState<S> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.state.is_some() {
             return;
         }
-        let window;
+        #[allow(unused_mut)]
+        let mut window_attributes = Window::default_attributes();
         #[cfg(target_arch = "wasm32")]
         {
             use wasm_bindgen::JsCast;
             use winit::dpi::PhysicalSize;
-            use winit::platform::web::WindowExtWebSys;
+            use winit::platform::web::WindowAttributesExtWebSys;
             let dom_window = web_sys::window().unwrap();
             let dom_document = dom_window.document().unwrap();
             let dom_canvas = dom_document.get_element_by_id(WEBAPP_CANVAS_ID).unwrap();
             let canvas = dom_canvas.dyn_into::<web_sys::HtmlCanvasElement>().ok();
-            WindowBuilder::default()
+            window_attributes = window_attributes
                 .with_canvas(canvas)
-                .with_inner_size(PhysicalSize::new(450, 400))
-                .build(event_loop)
+                .with_inner_size(PhysicalSize::new(450, 400));
+        }
+        let window = event_loop.create_window(window_attributes).unwrap();
+        window.set_cursor(CursorIcon::Grab);
+        let app_future = App::<S>::new_async(window);
+        let event_loop_proxy = self.event_loop_proxy.take().unwrap();
+        #[cfg(target_arch = "wasm32")]
+        {
+            wasm_bindgen_futures::spawn_local(async move {
+                let app = app_future.await;
+                assert!(event_loop_proxy.send_event(app).is_ok());
+            });
         }
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let window_attributes = Window::default_attributes();
-            window = event_loop.create_window(window_attributes).unwrap();
+            use pollster::FutureExt;
+            let app = app_future.block_on();
+            assert!(event_loop_proxy.send_event(app).is_ok());
         }
-        window.set_cursor(CursorIcon::Grab);
-        self.state = Some(App::<S>::new(window));
+    }
+
+    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: App<S>) {
+        self.state = Some(event);
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
@@ -256,10 +273,9 @@ impl<S: Scenario> ApplicationHandler for AppHandlerState<S> {
     }
 }
 
-pub async fn async_main<S: Scenario + 'static>() {
-    let event_loop = EventLoop::new().unwrap();
+pub fn init_event_loop<S: Scenario + 'static>() {
+    let event_loop = EventLoop::with_user_event().build().unwrap();
     event_loop.set_control_flow(ControlFlow::Poll);
-    event_loop
-        .run_app(&mut AppHandlerState::<S>::default())
-        .unwrap();
+    let app_handler_state = &mut AppHandlerState::<S>::new(&event_loop);
+    event_loop.run_app(app_handler_state).unwrap();
 }
