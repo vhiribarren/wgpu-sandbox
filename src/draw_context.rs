@@ -22,6 +22,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+use std::sync::Arc;
+
 use crate::draw_context::Drawable::{Direct, Indexed};
 use crate::scenario::Scenario;
 use anyhow::anyhow;
@@ -48,7 +50,7 @@ pub struct Vertex {
 }
 
 impl Vertex {
-    fn vertex_buffer_layout<'a>() -> wgpu::VertexBufferLayout<'a> {
+    fn vertex_buffer_layout() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
@@ -340,10 +342,10 @@ impl DeviceLocalExt for wgpu::Device {
     }
 }
 
-pub struct DrawContext<'a> {
+pub struct DrawContext {
     _adapter: wgpu::Adapter,
     multisample_texture: Option<wgpu::Texture>,
-    surface: wgpu::Surface<'a>,
+    surface: wgpu::Surface<'static>,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
     pub multisample_config: MultiSampleConfig,
@@ -351,17 +353,17 @@ pub struct DrawContext<'a> {
     pub queue: wgpu::Queue,
     pub transform_bind_group_layout: wgpu::BindGroupLayout,
     pub device: wgpu::Device,
-    pub vertex_buffer_layout: wgpu::VertexBufferLayout<'a>,
+    pub vertex_buffer_layout: wgpu::VertexBufferLayout<'static>,
     pub surface_config: wgpu::SurfaceConfiguration,
     pub pipeline_layout: wgpu::PipelineLayout,
 }
 
-impl DrawContext<'_> {
+impl DrawContext {
     const DEFAULT_MULTISAMPLE_ENABLED: bool = true;
     const DEFAULT_MULTISAMPLE_COUNT: u32 = 4;
     pub const BIND_GROUP_INDEX_CAMERA: u32 = 0;
 
-    pub async fn new(window: &Window, width: u32, height: u32) -> anyhow::Result<DrawContext<'_>> {
+    pub async fn new(window: Arc<Window>, width: u32, height: u32) -> anyhow::Result<DrawContext> {
         let multisample_config = MultiSampleConfig {
             multisample_enabled: Self::DEFAULT_MULTISAMPLE_ENABLED,
             multisample_count: Self::DEFAULT_MULTISAMPLE_COUNT,
@@ -370,7 +372,7 @@ impl DrawContext<'_> {
             backends: wgpu::Backends::all(),
             ..Default::default()
         });
-        let surface = instance.create_surface(window).unwrap();
+        let surface = instance.create_surface(window.clone()).unwrap();
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: Default::default(),
@@ -399,7 +401,12 @@ impl DrawContext<'_> {
             .await
             .unwrap();
         let surface_caps = surface.get_capabilities(&adapter);
-        let surface_format = surface_caps.formats[0];
+        let surface_format = surface_caps
+            .formats
+            .iter()
+            .find(|f| f.is_srgb())
+            .copied()
+            .unwrap_or(surface_caps.formats[0]);
         let surface_config = wgpu::SurfaceConfiguration {
             desired_maximum_frame_latency: 2,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
