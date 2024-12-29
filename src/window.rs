@@ -32,7 +32,7 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy}
 use winit::window::{CursorIcon, Window, WindowId};
 
 use crate::cameras::{Camera, PerspectiveConfig, WinitCameraAdapter};
-use crate::draw_context::{self, DrawContext};
+use crate::draw_context::{self, Dimensions, DrawContext};
 use crate::scenario::{Scenario, UpdateInterval};
 use log::debug;
 
@@ -101,7 +101,7 @@ struct App<S> {
 }
 
 impl<S: Scenario> App<S> {
-    async fn async_new(window: Window, width: u32, height: u32) -> Self {
+    async fn async_new(window: Window, dimensions: Option<Dimensions>) -> Self {
         let window = Arc::new(window);
         let mouse_state = MouseState::new();
         let scenario_start = Instant::now();
@@ -111,7 +111,7 @@ impl<S: Scenario> App<S> {
             //OrthogonalConfig {
             ..Default::default()
         }));
-        let draw_context = draw_context::DrawContext::new(window.clone(), width, height)
+        let draw_context = draw_context::DrawContext::new(Arc::clone(&window), dimensions)
             .await
             .unwrap();
         let scenario = S::new(&draw_context);
@@ -147,9 +147,10 @@ impl<S: Scenario + 'static> ApplicationHandler<App<S>> for AppHandlerState<S> {
         if self.state.is_some() {
             return;
         }
-        let (width, height);
         #[allow(unused_mut)]
         let mut window_attributes = Window::default_attributes();
+        #[allow(unused_mut)]
+        let mut dimensions = None;
         #[cfg(target_arch = "wasm32")]
         {
             use wasm_bindgen::JsCast;
@@ -159,21 +160,17 @@ impl<S: Scenario + 'static> ApplicationHandler<App<S>> for AppHandlerState<S> {
             let dom_document = dom_window.document().unwrap();
             let dom_canvas = dom_document.get_element_by_id(WEBAPP_CANVAS_ID).unwrap();
             let canvas = dom_canvas.dyn_into::<web_sys::HtmlCanvasElement>().unwrap();
-            width = dom_window.inner_width().unwrap().as_f64().unwrap() as u32;
-            height = dom_window.inner_height().unwrap().as_f64().unwrap() as u32;
+            let width = dom_window.inner_width().unwrap().as_f64().unwrap() as u32;
+            let height = dom_window.inner_height().unwrap().as_f64().unwrap() as u32;
+            dimensions.replace(Dimensions { width, height });
             // FIXME winit window has size of 0 at startup, so also passing dimensions to draw context
             window_attributes = window_attributes
                 .with_canvas(Some(canvas))
                 .with_inner_size(PhysicalSize::new(width, height));
         }
         let window = event_loop.create_window(window_attributes).unwrap();
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            width = window.inner_size().width;
-            height = window.inner_size().height;
-        }
         window.set_cursor(CursorIcon::Grab);
-        let app_future = App::<S>::async_new(window, width, height);
+        let app_future = App::<S>::async_new(window, dimensions);
         let event_loop_proxy = self.event_loop_proxy.take().unwrap();
         #[cfg(target_arch = "wasm32")]
         {

@@ -24,7 +24,7 @@ SOFTWARE.
 
 use log::info;
 
-use crate::{gui::init_event_loop, scenario::Scenario};
+use crate::{scenario::Scenario, window::init_event_loop};
 
 const GLOBAL_LOG_FILTER: log::LevelFilter = log::LevelFilter::Debug;
 

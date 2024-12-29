@@ -42,6 +42,11 @@ const M4X4_ID_UNIFORM: [[f32; 4]; 4] = [
     [0., 0., 0., 1.],
 ];
 
+pub struct Dimensions {
+    pub width: u32,
+    pub height: u32,
+}
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Vertex {
@@ -364,7 +369,14 @@ impl DrawContext {
     pub const BIND_GROUP_INDEX_CAMERA: u32 = 0;
 
     // FIXME winit window has size of 0 at startup for web browser, so also passing dimensions to draw context
-    pub async fn new(window: Arc<Window>, width: u32, height: u32) -> anyhow::Result<DrawContext> {
+    pub async fn new(
+        window: Arc<Window>,
+        dimensions: Option<Dimensions>,
+    ) -> anyhow::Result<DrawContext> {
+        let (width, height) = match dimensions {
+            Some(d) => (d.width, d.height),
+            None => (window.inner_size().width, window.inner_size().height),
+        };
         let multisample_config = MultiSampleConfig {
             multisample_enabled: Self::DEFAULT_MULTISAMPLE_ENABLED,
             multisample_count: Self::DEFAULT_MULTISAMPLE_COUNT,
@@ -373,7 +385,7 @@ impl DrawContext {
             backends: wgpu::Backends::all(),
             ..Default::default()
         });
-        let surface = instance.create_surface(window.clone()).unwrap();
+        let surface = instance.create_surface(Arc::clone(&window)).unwrap();
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: Default::default(),

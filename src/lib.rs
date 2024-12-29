@@ -24,7 +24,7 @@ SOFTWARE.
 
 pub mod cameras;
 pub mod draw_context;
-pub mod gui;
 pub mod launcher;
 pub mod primitives;
 pub mod scenario;
+pub mod window;
