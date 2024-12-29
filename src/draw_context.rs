@@ -363,6 +363,7 @@ impl DrawContext {
     const DEFAULT_MULTISAMPLE_COUNT: u32 = 4;
     pub const BIND_GROUP_INDEX_CAMERA: u32 = 0;
 
+    // FIXME winit window has size of 0 at startup for web browser, so also passing dimensions to draw context
     pub async fn new(window: Arc<Window>, width: u32, height: u32) -> anyhow::Result<DrawContext> {
         let multisample_config = MultiSampleConfig {
             multisample_enabled: Self::DEFAULT_MULTISAMPLE_ENABLED,

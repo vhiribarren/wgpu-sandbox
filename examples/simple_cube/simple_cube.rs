@@ -50,7 +50,7 @@ impl Scenario for MainScenario {
             module: &default_shader_module,
             entry_point: None,
             buffers: &[draw_context.vertex_buffer_layout.clone()],
-            compilation_options: Default::default()
+            compilation_options: Default::default(),
         };
         let fragment_state = wgpu::FragmentState {
             module: &default_shader_module,
@@ -59,9 +59,8 @@ impl Scenario for MainScenario {
                 format: draw_context.surface_config.format,
                 blend: Some(wgpu::BlendState::REPLACE),
                 write_mask: wgpu::ColorWrites::ALL,
-            }),
-            ],
-            compilation_options: Default::default()
+            })],
+            compilation_options: Default::default(),
         };
         let cube = cube::create_cube(draw_context, vertex_state, fragment_state);
         Self { cube }

@@ -60,10 +60,14 @@ impl MouseState {
         match action {
             ElementState::Pressed => {
                 self.mouse_rotation_enabled = true;
+                // FIXME disabled due to winit error when resizing in web context: already borrowed: BorrowMutError on window.set_cursor
+                #[cfg(not(target_arch = "wasm32"))]
                 window.set_cursor_visible(false);
             }
             ElementState::Released => {
                 self.mouse_rotation_enabled = false;
+                // FIXME disabled due to winit error when resizing in web context: already borrowed: BorrowMutError on window.set_cursor
+                #[cfg(not(target_arch = "wasm32"))]
                 window.set_cursor_visible(true);
             }
         }
@@ -71,6 +75,8 @@ impl MouseState {
 
     pub fn resize_action(&mut self, window: &Window) {
         self.mouse_rotation_enabled = false;
+        // FIXME disabled due to winit error when resizing in web context: already borrowed: BorrowMutError on window.set_cursor
+        #[cfg(not(target_arch = "wasm32"))]
         window.set_cursor_visible(true);
     }
 
@@ -95,7 +101,7 @@ struct App<S> {
 }
 
 impl<S: Scenario> App<S> {
-    async fn new_async(window: Window) -> Self {
+    async fn async_new(window: Window, width: u32, height: u32) -> Self {
         let window = Arc::new(window);
         let mouse_state = MouseState::new();
         let scenario_start = Instant::now();
@@ -105,13 +111,9 @@ impl<S: Scenario> App<S> {
             //OrthogonalConfig {
             ..Default::default()
         }));
-        let draw_context = draw_context::DrawContext::new(
-            window.clone(),
-            window.inner_size().width,
-            window.inner_size().height,
-        )
-        .await
-        .unwrap();
+        let draw_context = draw_context::DrawContext::new(window.clone(), width, height)
+            .await
+            .unwrap();
         let scenario = S::new(&draw_context);
         Self {
             window,
@@ -145,6 +147,7 @@ impl<S: Scenario + 'static> ApplicationHandler<App<S>> for AppHandlerState<S> {
         if self.state.is_some() {
             return;
         }
+        let (width, height);
         #[allow(unused_mut)]
         let mut window_attributes = Window::default_attributes();
         #[cfg(target_arch = "wasm32")]
@@ -155,14 +158,22 @@ impl<S: Scenario + 'static> ApplicationHandler<App<S>> for AppHandlerState<S> {
             let dom_window = web_sys::window().unwrap();
             let dom_document = dom_window.document().unwrap();
             let dom_canvas = dom_document.get_element_by_id(WEBAPP_CANVAS_ID).unwrap();
-            let canvas = dom_canvas.dyn_into::<web_sys::HtmlCanvasElement>().ok();
+            let canvas = dom_canvas.dyn_into::<web_sys::HtmlCanvasElement>().unwrap();
+            width = dom_window.inner_width().unwrap().as_f64().unwrap() as u32;
+            height = dom_window.inner_height().unwrap().as_f64().unwrap() as u32;
+            // FIXME winit window has size of 0 at startup, so also passing dimensions to draw context
             window_attributes = window_attributes
-                .with_canvas(canvas)
-                .with_inner_size(PhysicalSize::new(450, 400));
+                .with_canvas(Some(canvas))
+                .with_inner_size(PhysicalSize::new(width, height));
         }
         let window = event_loop.create_window(window_attributes).unwrap();
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            width = window.inner_size().width;
+            height = window.inner_size().height;
+        }
         window.set_cursor(CursorIcon::Grab);
-        let app_future = App::<S>::new_async(window);
+        let app_future = App::<S>::async_new(window, width, height);
         let event_loop_proxy = self.event_loop_proxy.take().unwrap();
         #[cfg(target_arch = "wasm32")]
         {
@@ -193,6 +204,7 @@ impl<S: Scenario + 'static> ApplicationHandler<App<S>> for AppHandlerState<S> {
                 event_loop.exit();
             }
             WindowEvent::Resized(physical_size) => {
+                debug!("Window is resizing");
                 app.mouse_state.resize_action(&app.window);
                 app.draw_context
                     .resize(physical_size.width, physical_size.height);
@@ -201,7 +213,7 @@ impl<S: Scenario + 'static> ApplicationHandler<App<S>> for AppHandlerState<S> {
                 app.winit_camera.keyboard_event_listener(event);
             }
             WindowEvent::Moved { .. } => {
-                dbg!("Window moved");
+                debug!("Window moved");
                 app.mouse_state.move_action();
             }
             WindowEvent::CursorEntered { .. } => {

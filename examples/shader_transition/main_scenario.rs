@@ -59,7 +59,7 @@ impl Scenario for MainScenario {
             module: &default_shader_module,
             entry_point: None,
             buffers: &[draw_context.vertex_buffer_layout.clone()],
-            compilation_options: Default::default()
+            compilation_options: Default::default(),
         };
         let default_fragment_state = wgpu::FragmentState {
             module: &default_shader_module,
@@ -69,7 +69,7 @@ impl Scenario for MainScenario {
                 blend: None,
                 write_mask: wgpu::ColorWrites::ALL,
             })],
-            compilation_options: Default::default()
+            compilation_options: Default::default(),
         };
         let flat_shader_module =
             draw_context
@@ -82,7 +82,7 @@ impl Scenario for MainScenario {
             module: &flat_shader_module,
             entry_point: None,
             buffers: &[draw_context.vertex_buffer_layout.clone()],
-            compilation_options: Default::default()
+            compilation_options: Default::default(),
         };
         let blend_state = wgpu::BlendState {
             color: wgpu::BlendComponent {
@@ -100,7 +100,7 @@ impl Scenario for MainScenario {
                 blend: Some(blend_state),
                 write_mask: wgpu::ColorWrites::ALL,
             })],
-            compilation_options: Default::default()
+            compilation_options: Default::default(),
         };
         let cube_interpolated =
             cube::create_cube(draw_context, default_vertex_state, default_fragment_state);
