@@ -22,11 +22,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+use std::borrow::Borrow;
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use crate::draw_context::Drawable::{Direct, Indexed};
 use crate::scenario::Scenario;
-use anyhow::anyhow;
+use anyhow::{anyhow, bail, Ok};
 use log::debug;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{
@@ -45,6 +47,64 @@ const M4X4_ID_UNIFORM: [[f32; 4]; 4] = [
 pub struct Dimensions {
     pub width: u32,
     pub height: u32,
+}
+
+#[derive(Default)]
+pub struct VertexBufferGroup<'a> {
+    buffers: Vec<wgpu::Buffer>,
+    layouts: Vec<wgpu::VertexBufferLayout<'a>>,
+    attributes: Vec<Vec<wgpu::VertexAttribute>>,
+    used_locations: HashSet<u32>,
+}
+impl<'a> VertexBufferGroup<'a> {
+    pub unsafe fn add_buffer(&mut self, layout: wgpu::VertexBufferLayout<'a>, buffer: wgpu::Buffer) {
+        self.layouts.push(layout);
+        self.buffers.push(buffer);
+    }
+    pub fn create_attribute<T>(
+        &'a mut self,
+        context: DrawContext,
+        shader_location: u32,
+        step_mode: wgpu::VertexStepMode,
+        data: &[T],
+        format: wgpu::VertexFormat,
+    ) -> Result<(), anyhow::Error> where
+        T: bytemuck::Pod + bytemuck::Zeroable,
+    {
+        if self.used_locations.contains(&shader_location) {
+            bail!("Location {} already used!", shader_location);
+        }
+        self.used_locations.insert(shader_location);
+        let attributes = vec![wgpu::VertexAttribute {
+            format,
+            offset: 0,
+            shader_location,
+        }];
+        self.attributes.push(attributes);
+        let layout = wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<T>() as wgpu::BufferAddress,
+            step_mode,
+            attributes: self.attributes.last().unwrap(),
+        };
+        let buffer = context
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Buffer"),
+                contents: bytemuck::cast_slice(data),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+        self.layouts.push(layout);
+        self.buffers.push(buffer);
+        Ok(())
+    }
+    pub fn update_render_pass(&self, render_pass: &mut wgpu::RenderPass<'_>) {
+        for (slot, vtx_buffer) in self.buffers.iter().enumerate() {
+            render_pass.set_vertex_buffer(slot as u32, vtx_buffer.slice(..));
+        }
+    }
+    pub fn get_buffer_layouts(&self) -> &[wgpu::VertexBufferLayout<'_>] {
+        self.layouts.as_slice()
+    }
 }
 
 #[repr(C)]
