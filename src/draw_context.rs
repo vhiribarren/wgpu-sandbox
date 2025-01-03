@@ -68,6 +68,7 @@ pub struct DrawableBuilder<'a> {
     draw_mode: Option<DrawMode>,
     layouts: Vec<wgpu::VertexBufferLayout<'a>>,
     instance_count: u32,
+    blend_option: Option<wgpu::BlendState>,
 }
 
 impl<'a> DrawableBuilder<'a> {
@@ -86,10 +87,15 @@ impl<'a> DrawableBuilder<'a> {
             layouts: Vec::new(),
             instance_count: 1,
             draw_mode: None,
+            blend_option: None,
         }
     }
     pub fn set_instance_count(&mut self, value: u32) -> &mut Self {
         self.instance_count = value;
+        self
+    }
+    pub fn set_blend_option(&mut self, blend_option: wgpu::BlendState) -> &mut Self {
+        self.blend_option = Some(blend_option);
         self
     }
     pub fn add_attribute<T>(
@@ -173,7 +179,7 @@ impl<'a> DrawableBuilder<'a> {
             entry_point: None,
             targets: &[Some(wgpu::ColorTargetState {
                 format: self.context.surface_config.format,
-                blend: Some(wgpu::BlendState::REPLACE),
+                blend: self.blend_option,
                 write_mask: wgpu::ColorWrites::ALL,
             })],
             compilation_options: Default::default(),
@@ -276,6 +282,7 @@ impl Drawable {
 
     pub fn render<'drawable>(&'drawable self, render_pass: &mut wgpu::RenderPass<'drawable>) {
         render_pass.set_pipeline(&self.pipeline);
+        render_pass.set_blend_constant(self.blend_color_opacity);
         render_pass.set_bind_group(1, &self.transform_bind_group, &[]);
         for (slot, vertex_buffer) in self.buffers.iter().enumerate() {
             render_pass.set_vertex_buffer(slot as u32, vertex_buffer.slice(..));
@@ -293,7 +300,6 @@ impl Drawable {
                 render_pass.draw_indexed(0..*index_count, 0, 0..self.instance_count);
             }
         }
-        render_pass.set_blend_constant(self.blend_color_opacity);
     }
 }
 

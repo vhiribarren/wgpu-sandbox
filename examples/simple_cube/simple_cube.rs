@@ -40,7 +40,13 @@ pub struct MainScenario {
 impl Scenario for MainScenario {
     fn new(draw_context: &DrawContext) -> Self {
         let shader_module = draw_context.create_shader_module(DEFAULT_SHADER);
-        let cube = cube::create_cube(draw_context, &shader_module, &shader_module).unwrap();
+        let cube = cube::create_cube(
+            draw_context,
+            &shader_module,
+            &shader_module,
+            Default::default(),
+        )
+        .unwrap();
         Self { cube }
     }
     fn update(&mut self, context: &DrawContext, update_interval: &UpdateInterval) {

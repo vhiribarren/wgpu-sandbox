@@ -23,37 +23,71 @@ SOFTWARE.
 */
 
 use demo_cube_wgpu::draw_context::DrawContext;
+use demo_cube_wgpu::primitives::cube::CubeOptions;
 use demo_cube_wgpu::primitives::{cube, Object3D};
 use demo_cube_wgpu::scenario::{Scenario, UpdateInterval};
 
-const DEFAULT_SHADER: &str = include_str!(concat!(
+use web_time::Duration;
+
+const INTERPOLATED_SHADER: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/src/shaders/default.wgsl"
 ));
 
+const FLAT_SHADER: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/src/shaders/flat.wgsl"
+));
+
 const ROTATION_DEG_PER_S: f32 = 45.0;
+const SHADER_TRANSITION_PERIOD: Duration = Duration::from_secs(1);
 
 pub struct MainScenario {
-    pub cube: Object3D,
+    pub cube_interpolated: Object3D,
+    pub cube_flat: Object3D,
 }
 
 impl Scenario for MainScenario {
     fn new(draw_context: &DrawContext) -> Self {
-        let shader_module = draw_context.create_shader_module(DEFAULT_SHADER);
-        let cube = cube::create_cube(draw_context, &shader_module, &shader_module).unwrap();
-        Self { cube }
+        let interpolated_shader_module = draw_context.create_shader_module(INTERPOLATED_SHADER);
+        let flat_shader_module = draw_context.create_shader_module(FLAT_SHADER);
+        let cube_interpolated = cube::create_cube(
+            draw_context,
+            &interpolated_shader_module,
+            &interpolated_shader_module,
+            Default::default(),
+        )
+        .unwrap();
+        let cube_flat = cube::create_cube(
+            draw_context,
+            &flat_shader_module,
+            &flat_shader_module,
+            CubeOptions { with_alpha: true },
+        )
+        .unwrap();
+        Self {
+            cube_interpolated,
+            cube_flat,
+        }
     }
     fn update(&mut self, context: &DrawContext, update_interval: &UpdateInterval) {
-        let total_seconds = update_interval.scenario_start.elapsed().as_secs_f32();
-        let new_rotation = ROTATION_DEG_PER_S * total_seconds;
-        // Translation on z to be in the clipped space (between -w and w) and camera in front of the cube
-        let z_translation: cgmath::Matrix4<f32> =
-            cgmath::Matrix4::from_translation(cgmath::Vector3::new(0.0, 0.0, 1.0));
-        let transform: cgmath::Matrix4<f32> =
-            cgmath::Matrix4::from_angle_z(cgmath::Deg(new_rotation));
-        self.cube.set_transform(context, transform * z_translation);
+        let delta_rotation = ROTATION_DEG_PER_S * update_interval.update_delta.as_secs_f32();
+        let transform = cgmath::Matrix4::from_angle_z(cgmath::Deg(delta_rotation))
+            * cgmath::Matrix4::from_angle_y(cgmath::Deg(delta_rotation));
+        self.cube_interpolated.apply_transform(context, transform);
+        self.cube_flat.apply_transform(context, transform);
+        self.cube_flat.set_opacity(
+            0.5 + f32::sin(
+                2. * update_interval.scenario_start.elapsed().as_secs_f32()
+                    / SHADER_TRANSITION_PERIOD.as_secs_f32(),
+            ) / 2_f32,
+        );
     }
-    fn render<'drawable>(&'drawable self, render_pass: &mut wgpu::RenderPass<'drawable>) {
-        self.cube.as_ref().render(render_pass);
+    fn render<'drawable>(
+        &'drawable self,
+        render_pass: &mut wgpu::RenderPass<'drawable>,
+    ) {
+        self.cube_interpolated.as_ref().render(render_pass);
+        self.cube_flat.as_ref().render(render_pass);
     }
 }

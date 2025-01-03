@@ -79,10 +79,21 @@ const CUBE_COLOR: &[f32] = &[
     1., 0., 1.,
 ];
 
+pub struct CubeOptions {
+    pub with_alpha: bool,
+}
+
+impl Default for CubeOptions {
+    fn default() -> Self {
+        Self { with_alpha: false }
+    }
+}
+
 pub fn create_cube(
     context: &DrawContext,
     vtx_module: &wgpu::ShaderModule,
     frg_module: &wgpu::ShaderModule,
+    options: CubeOptions,
 ) -> Result<Object3D, anyhow::Error> {
     let mut drawable_builder = DrawableBuilder::new(context, vtx_module, frg_module);
     drawable_builder
@@ -98,6 +109,16 @@ pub fn create_cube(
             CUBE_COLOR,
             wgpu::VertexFormat::Float32x3,
         )?;
+    if options.with_alpha {
+        drawable_builder.set_blend_option(wgpu::BlendState {
+            color: wgpu::BlendComponent {
+                src_factor: wgpu::BlendFactor::Constant,
+                dst_factor: wgpu::BlendFactor::OneMinusConstant,
+                operation: wgpu::BlendOperation::Add,
+            },
+            alpha: Default::default(),
+        });
+    }
     let drawable = drawable_builder.build_for_indexed_draw(
         wgpu::IndexFormat::Uint16,
         CUBE_INDICES.len() as u32,

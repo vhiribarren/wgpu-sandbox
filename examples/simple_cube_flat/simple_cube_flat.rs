@@ -39,30 +39,14 @@ pub struct MainScenario {
 
 impl Scenario for MainScenario {
     fn new(draw_context: &DrawContext) -> Self {
-        let default_shader_module =
-            draw_context
-                .device
-                .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: Some("Vertex Shader"),
-                    source: wgpu::ShaderSource::Wgsl(DEFAULT_SHADER.into()),
-                });
-        let vertex_state = wgpu::VertexState {
-            module: &default_shader_module,
-            entry_point: None,
-            buffers: &[draw_context.vertex_buffer_layout.clone()],
-            compilation_options: Default::default(),
-        };
-        let fragment_state = wgpu::FragmentState {
-            module: &default_shader_module,
-            entry_point: None,
-            targets: &[Some(wgpu::ColorTargetState {
-                format: draw_context.surface_config.format,
-                blend: Some(wgpu::BlendState::REPLACE),
-                write_mask: wgpu::ColorWrites::ALL,
-            })],
-            compilation_options: Default::default(),
-        };
-        let cube = cube::create_cube(draw_context, vertex_state, fragment_state);
+        let shader_module = draw_context.create_shader_module(DEFAULT_SHADER);
+        let cube = cube::create_cube(
+            draw_context,
+            &shader_module,
+            &shader_module,
+            Default::default(),
+        )
+        .unwrap();
         Self { cube }
     }
     fn update(&mut self, context: &DrawContext, update_interval: &UpdateInterval) {
@@ -75,10 +59,7 @@ impl Scenario for MainScenario {
             cgmath::Matrix4::from_angle_z(cgmath::Deg(new_rotation));
         self.cube.set_transform(context, transform * z_translation);
     }
-    fn render<'drawable, 'render>(
-        &'drawable self,
-        render_pass: &'render mut wgpu::RenderPass<'drawable>,
-    ) {
+    fn render<'drawable>(&'drawable self, render_pass: &mut wgpu::RenderPass<'drawable>) {
         self.cube.as_ref().render(render_pass);
     }
 }
