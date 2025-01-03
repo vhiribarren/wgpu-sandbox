@@ -46,23 +46,7 @@ impl Scenario for MainScenario {
                     label: Some("Fragment Shader"),
                     source: wgpu::ShaderSource::Wgsl(DEFAULT_SHADER.into()),
                 });
-        let vertex_state = wgpu::VertexState {
-            module: &default_shader_module,
-            entry_point: None,
-            buffers: &[draw_context.vertex_buffer_layout.clone()],
-            compilation_options: Default::default(),
-        };
-        let fragment_state = wgpu::FragmentState {
-            module: &default_shader_module,
-            entry_point: None,
-            targets: &[Some(wgpu::ColorTargetState {
-                format: draw_context.surface_config.format,
-                blend: Some(wgpu::BlendState::REPLACE),
-                write_mask: wgpu::ColorWrites::ALL,
-            })],
-            compilation_options: Default::default(),
-        };
-        let triangle = triangle::create_triangle(draw_context, vertex_state, fragment_state);
+        let triangle = triangle::create_triangle(draw_context, &default_shader_module, &default_shader_module);
         Self { triangle }
     }
     fn update(&mut self, context: &DrawContext, update_interval: &UpdateInterval) {

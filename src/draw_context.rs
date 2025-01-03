@@ -22,18 +22,16 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-use std::borrow::Borrow;
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use crate::draw_context::Drawable::{Direct, Indexed};
 use crate::scenario::Scenario;
 use anyhow::{anyhow, bail, Ok};
 use log::debug;
-use wgpu::util::{BufferInitDescriptor, DeviceExt};
+use wgpu::util::{BufferInitDescriptor, DeviceExt, RenderEncoder};
 use wgpu::{
     BindGroupLayoutDescriptor, BindingType, BufferBindingType, ShaderStages, SurfaceConfiguration,
-    Texture,
+    Texture, VertexAttribute,
 };
 use winit::window::Window;
 
@@ -49,26 +47,51 @@ pub struct Dimensions {
     pub height: u32,
 }
 
-#[derive(Default)]
-pub struct VertexBufferGroup<'a> {
+pub struct DrawableBuilder<'a> {
+    context: &'a DrawContext,
+    vtx_shader_module: wgpu::ShaderModule,
+    frg_shader_module: wgpu::ShaderModule,
+    used_locations: HashSet<u32>,
+    attributes: Vec<Vec<wgpu::VertexAttribute>>,
     buffers: Vec<wgpu::Buffer>,
     layouts: Vec<wgpu::VertexBufferLayout<'a>>,
-    attributes: Vec<Vec<wgpu::VertexAttribute>>,
-    used_locations: HashSet<u32>,
+    vertex_count: u32,
+    instance_count: u32,
 }
-impl<'a> VertexBufferGroup<'a> {
-    pub unsafe fn add_buffer(&mut self, layout: wgpu::VertexBufferLayout<'a>, buffer: wgpu::Buffer) {
-        self.layouts.push(layout);
-        self.buffers.push(buffer);
+impl<'a> DrawableBuilder<'a> {
+    pub fn new(
+        context: &'a DrawContext,
+        vtx_shader_module: wgpu::ShaderModule,
+        frg_shader_module: wgpu::ShaderModule,
+    ) -> Self {
+        return Self {
+            context,
+            vtx_shader_module,
+            frg_shader_module,
+            used_locations: HashSet::new(),
+            attributes: Vec::new(),
+            buffers: Vec::new(),
+            layouts: Vec::new(),
+            vertex_count: 0,
+            instance_count: 1,
+        };
     }
-    pub fn create_attribute<T>(
-        &'a mut self,
-        context: DrawContext,
+    pub fn set_index_count(&mut self, value: u32) -> &mut Self {
+        self.vertex_count = value;
+        self
+    }
+    pub fn set_instance_count(&mut self, value: u32) -> &mut Self {
+        self.instance_count = value;
+        self
+    }
+    pub fn add_attribute<T>(
+        &mut self,
         shader_location: u32,
         step_mode: wgpu::VertexStepMode,
         data: &[T],
         format: wgpu::VertexFormat,
-    ) -> Result<(), anyhow::Error> where
+    ) -> Result<&mut Self, anyhow::Error>
+    where
         T: bytemuck::Pod + bytemuck::Zeroable,
     {
         if self.used_locations.contains(&shader_location) {
@@ -80,149 +103,52 @@ impl<'a> VertexBufferGroup<'a> {
             offset: 0,
             shader_location,
         }];
-        self.attributes.push(attributes);
         let layout = wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<T>() as wgpu::BufferAddress,
+            array_stride: format.size() as wgpu::BufferAddress,
             step_mode,
-            attributes: self.attributes.last().unwrap(),
+            attributes: &[], // Filled later during build
         };
-        let buffer = context
+        let buffer = self
+            .context
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Vertex Buffer"),
                 contents: bytemuck::cast_slice(data),
                 usage: wgpu::BufferUsages::VERTEX,
             });
+        self.attributes.push(attributes);
         self.layouts.push(layout);
         self.buffers.push(buffer);
-        Ok(())
+        Ok(self)
     }
-    pub fn update_render_pass(&self, render_pass: &mut wgpu::RenderPass<'_>) {
-        for (slot, vtx_buffer) in self.buffers.iter().enumerate() {
-            render_pass.set_vertex_buffer(slot as u32, vtx_buffer.slice(..));
+    pub fn build(self) -> Drawable {
+        let mut layouts = self.layouts;
+        for (layout, attribute) in layouts.iter_mut().zip(self.attributes.iter()) {
+            layout.attributes = attribute;
         }
-    }
-    pub fn get_buffer_layouts(&self) -> &[wgpu::VertexBufferLayout<'_>] {
-        self.layouts.as_slice()
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct Vertex {
-    pub position: [f32; 3],
-    pub color: [f32; 3],
-}
-
-impl Vertex {
-    fn vertex_buffer_layout() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float32x3,
-                    offset: 0,
-                    shader_location: 0,
-                },
-                wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float32x3,
-                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
-                    shader_location: 1,
-                },
-            ],
-        }
-    }
-}
-
-impl Default for Vertex {
-    fn default() -> Self {
-        Vertex {
-            position: [0., 0., 0.],
-            color: [1., 1., 1.],
-        }
-    }
-}
-
-struct BaseDrawable {
-    render_pipeline: wgpu::RenderPipeline,
-    vertex_buffer: wgpu::Buffer,
-    transform_buffer: wgpu::Buffer,
-    transform_bind_group: wgpu::BindGroup,
-    blend_color_opacity: wgpu::Color,
-}
-
-pub struct DirectRenderingDrawable {
-    base: BaseDrawable,
-    vertex_count: u32,
-}
-
-pub struct IndexedRenderingDrawable {
-    base: BaseDrawable,
-    index_buffer: wgpu::Buffer,
-    index_count: u32,
-}
-
-pub enum Drawable {
-    Direct(DirectRenderingDrawable),
-    Indexed(IndexedRenderingDrawable),
-}
-
-impl Drawable {
-    pub fn init_direct(
-        context: &DrawContext,
-        vertex_slice: &[Vertex],
-        vertex_state: wgpu::VertexState,
-        fragment_state: wgpu::FragmentState,
-    ) -> Self {
-        let vertex_count = vertex_slice.len() as u32;
-        let base = Self::init_base(context, vertex_slice, vertex_state, fragment_state);
-        Direct(DirectRenderingDrawable { base, vertex_count })
-    }
-
-    pub fn init_indexed(
-        context: &DrawContext,
-        vertex_slice: &[Vertex],
-        vertex_indices: &[[u16; 3]],
-        vertex_state: wgpu::VertexState,
-        fragment_state: wgpu::FragmentState,
-    ) -> Self {
-        let base = Self::init_base(context, vertex_slice, vertex_state, fragment_state);
-        let index_buffer = context
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Index Buffer"),
-                contents: bytemuck::cast_slice(vertex_indices),
-                usage: wgpu::BufferUsages::INDEX,
-            });
-        let index_count = 3 * vertex_indices.len() as u32;
-        Indexed(IndexedRenderingDrawable {
-            base,
-            index_buffer,
-            index_count,
-        })
-    }
-
-    fn init_base(
-        context: &DrawContext,
-        vertex_slice: &[Vertex],
-        vertex_state: wgpu::VertexState,
-        fragment_state: wgpu::FragmentState,
-    ) -> BaseDrawable {
-        let vertex_buffer = context
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Vertex Buffer"),
-                contents: bytemuck::cast_slice(vertex_slice),
-                usage: wgpu::BufferUsages::VERTEX,
-            });
-        let render_pipeline =
-            context
+        let vertex_state = wgpu::VertexState {
+            module: &self.vtx_shader_module,
+            entry_point: None,
+            buffers: &layouts,
+            compilation_options: Default::default(),
+        };
+        let fragment_state = wgpu::FragmentState {
+            module: &self.frg_shader_module,
+            entry_point: None,
+            targets: &[Some(wgpu::ColorTargetState {
+                format: self.context.surface_config.format,
+                blend: Some(wgpu::BlendState::REPLACE),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+            compilation_options: Default::default(),
+        };
+        let pipeline =
+            self.context
                 .device
                 .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                     cache: None,
                     label: Some("Render Pipeline"),
-                    layout: Some(&context.pipeline_layout),
+                    layout: Some(&self.context.pipeline_layout),
                     vertex: vertex_state,
                     fragment: Some(fragment_state),
                     primitive: wgpu::PrimitiveState {
@@ -242,43 +168,62 @@ impl Drawable {
                         bias: Default::default(),
                     }),
                     multisample: wgpu::MultisampleState {
-                        count: context.multisample_config.get_multisample_count(),
+                        count: self.context.multisample_config.get_multisample_count(),
                         ..Default::default()
                     },
                     multiview: None,
                 });
-        let transform_buffer =
-            context
+
+
+        let transform_buffer = self.context
                 .device
                 .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: Some("Transform Buffer"),
                     contents: bytemuck::cast_slice(&M4X4_ID_UNIFORM),
                     usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
                 });
-        let transform_bind_group = context
+        let transform_bind_group = self.context
             .device
             .create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("Transform bind group"),
-                layout: &context.transform_bind_group_layout,
+                layout: &self.context.transform_bind_group_layout,
                 entries: &[wgpu::BindGroupEntry {
                     binding: 0,
                     resource: transform_buffer.as_entire_binding(),
                 }],
             });
         let blend_color_opacity = wgpu::Color::WHITE;
-        BaseDrawable {
-            render_pipeline,
-            vertex_buffer,
+
+        return Drawable {
+            buffers: self.buffers,
+            //vertex_indices: None,
+            vertex_count: self.vertex_count,
+            instance_count: self.instance_count,
+            pipeline,
             transform_buffer,
             transform_bind_group,
             blend_color_opacity,
-        }
+        };
     }
+}
 
+pub struct Drawable { // Pas besoin de 'a !!!!!
+    buffers: Vec<wgpu::Buffer>,
+    //vertex_indices: Option<&' [[u16; 3]]>,
+    vertex_count: u32,
+    instance_count: u32,
+    pipeline: wgpu::RenderPipeline,
+    // test
+    transform_buffer: wgpu::Buffer,
+    transform_bind_group: wgpu::BindGroup,
+    blend_color_opacity: wgpu::Color,
+}
+
+impl Drawable {
     pub fn set_transform(&mut self, context: &DrawContext, transform: impl AsRef<[[f32; 4]; 4]>) {
         #[allow(clippy::unnecessary_cast)]
         context.queue.write_buffer(
-            &self.as_ref().transform_buffer,
+            &self.transform_buffer,
             0 as wgpu::BufferAddress,
             bytemuck::cast_slice(transform.as_ref()),
         );
@@ -286,7 +231,7 @@ impl Drawable {
 
     pub fn set_blend_color_opacity(&mut self, value: f64) {
         let value = value.clamp(0., 1.);
-        self.as_mut().blend_color_opacity = wgpu::Color {
+        self.blend_color_opacity = wgpu::Color {
             r: value,
             g: value,
             b: value,
@@ -295,40 +240,20 @@ impl Drawable {
     }
 
     pub fn render<'drawable>(&'drawable self, render_pass: &mut wgpu::RenderPass<'drawable>) {
-        let base = self.as_ref();
-        render_pass.set_pipeline(&base.render_pipeline);
-        render_pass.set_bind_group(1, &base.transform_bind_group, &[]);
-        render_pass.set_vertex_buffer(0, base.vertex_buffer.slice(..));
-        render_pass.set_blend_constant(base.blend_color_opacity);
-        match self {
-            Drawable::Direct(d) => {
-                render_pass.draw(0..d.vertex_count, 0..1);
-            }
-            Drawable::Indexed(d) => {
-                render_pass.set_index_buffer(d.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-                render_pass.draw_indexed(0..d.index_count, 0, 0..1);
-            }
-        };
+        render_pass.set_pipeline(&self.pipeline);
+        render_pass.set_bind_group(1, &self.transform_bind_group, &[]);
+        for (slot, vertex_buffer) in self.buffers.iter().enumerate() {
+            render_pass.set_vertex_buffer(slot as u32, vertex_buffer.slice(..));
+        }
+        //if let Some(indices) = self.instance_count {
+        //    render_pass.set_index_buffer(buffer_slice, index_format);
+        //}
+        render_pass.set_blend_constant(self.blend_color_opacity);
+        render_pass.draw(0..self.vertex_count, 0..self.instance_count);
     }
 }
 
-impl AsRef<BaseDrawable> for Drawable {
-    fn as_ref(&self) -> &BaseDrawable {
-        match self {
-            Self::Direct(d) => &d.base,
-            Self::Indexed(d) => &d.base,
-        }
-    }
-}
 
-impl AsMut<BaseDrawable> for Drawable {
-    fn as_mut(&mut self) -> &mut BaseDrawable {
-        match self {
-            Self::Direct(d) => &mut d.base,
-            Self::Indexed(d) => &mut d.base,
-        }
-    }
-}
 
 pub struct MultiSampleConfig {
     multisample_enabled: bool,
@@ -418,7 +343,6 @@ pub struct DrawContext {
     pub queue: wgpu::Queue,
     pub transform_bind_group_layout: wgpu::BindGroupLayout,
     pub device: wgpu::Device,
-    pub vertex_buffer_layout: wgpu::VertexBufferLayout<'static>,
     pub surface_config: wgpu::SurfaceConfiguration,
     pub pipeline_layout: wgpu::PipelineLayout,
 }
@@ -491,7 +415,6 @@ impl DrawContext {
             present_mode: wgpu::PresentMode::Fifo,
         };
         surface.configure(&device, &surface_config);
-        let vertex_buffer_layout = Vertex::vertex_buffer_layout();
         let transform_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("Transform bind group"),
@@ -553,7 +476,6 @@ impl DrawContext {
             camera_buffer,
             camera_bind_group,
             transform_bind_group_layout,
-            vertex_buffer_layout,
             pipeline_layout,
             depth_texture,
         })
