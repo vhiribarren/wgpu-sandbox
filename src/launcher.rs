@@ -26,7 +26,7 @@ use log::info;
 
 use crate::{scenario::Scenario, window::init_event_loop};
 
-const GLOBAL_LOG_FILTER: log::LevelFilter = log::LevelFilter::Debug;
+const GLOBAL_LOG_FILTER: log::LevelFilter = log::LevelFilter::Info;
 
 pub fn launch_scenario<S: Scenario + 'static>() {
     init_log();

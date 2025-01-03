@@ -28,10 +28,10 @@ use std::sync::Arc;
 use crate::scenario::Scenario;
 use anyhow::{anyhow, bail, Ok};
 use log::debug;
-use wgpu::util::{BufferInitDescriptor, DeviceExt, RenderEncoder};
+use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{
     BindGroupLayoutDescriptor, BindingType, BufferBindingType, ShaderStages, SurfaceConfiguration,
-    Texture, VertexAttribute,
+    Texture,
 };
 use winit::window::Window;
 
@@ -47,24 +47,36 @@ pub struct Dimensions {
     pub height: u32,
 }
 
+pub enum DrawMode {
+    Direct {
+        vertex_count: u32,
+    },
+    Indexed {
+        format: wgpu::IndexFormat,
+        index_count: u32,
+        index_buffer: wgpu::Buffer,
+    },
+}
+
 pub struct DrawableBuilder<'a> {
     context: &'a DrawContext,
-    vtx_shader_module: wgpu::ShaderModule,
-    frg_shader_module: wgpu::ShaderModule,
+    vtx_shader_module: &'a wgpu::ShaderModule,
+    frg_shader_module: &'a wgpu::ShaderModule,
     used_locations: HashSet<u32>,
     attributes: Vec<Vec<wgpu::VertexAttribute>>,
     buffers: Vec<wgpu::Buffer>,
+    draw_mode: Option<DrawMode>,
     layouts: Vec<wgpu::VertexBufferLayout<'a>>,
-    vertex_count: u32,
     instance_count: u32,
 }
+
 impl<'a> DrawableBuilder<'a> {
     pub fn new(
         context: &'a DrawContext,
-        vtx_shader_module: wgpu::ShaderModule,
-        frg_shader_module: wgpu::ShaderModule,
+        vtx_shader_module: &'a wgpu::ShaderModule,
+        frg_shader_module: &'a wgpu::ShaderModule,
     ) -> Self {
-        return Self {
+        Self {
             context,
             vtx_shader_module,
             frg_shader_module,
@@ -72,13 +84,9 @@ impl<'a> DrawableBuilder<'a> {
             attributes: Vec::new(),
             buffers: Vec::new(),
             layouts: Vec::new(),
-            vertex_count: 0,
             instance_count: 1,
-        };
-    }
-    pub fn set_index_count(&mut self, value: u32) -> &mut Self {
-        self.vertex_count = value;
-        self
+            draw_mode: None,
+        }
     }
     pub fn set_instance_count(&mut self, value: u32) -> &mut Self {
         self.instance_count = value;
@@ -92,7 +100,7 @@ impl<'a> DrawableBuilder<'a> {
         format: wgpu::VertexFormat,
     ) -> Result<&mut Self, anyhow::Error>
     where
-        T: bytemuck::Pod + bytemuck::Zeroable,
+        T: bytemuck::NoUninit,
     {
         if self.used_locations.contains(&shader_location) {
             bail!("Location {} already used!", shader_location);
@@ -121,19 +129,47 @@ impl<'a> DrawableBuilder<'a> {
         self.buffers.push(buffer);
         Ok(self)
     }
-    pub fn build(self) -> Drawable {
+    pub fn build_for_direct_draw(mut self, vertex_count: u32) -> Drawable {
+        self.draw_mode = Some(DrawMode::Direct { vertex_count });
+        self.build()
+    }
+    pub fn build_for_indexed_draw<T>(
+        mut self,
+        format: wgpu::IndexFormat,
+        index_count: u32,
+        data: &[T],
+    ) -> Drawable
+    where
+        T: bytemuck::NoUninit,
+    {
+        let index_buffer =
+            self.context
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Index Buffer"),
+                    contents: bytemuck::cast_slice(data),
+                    usage: wgpu::BufferUsages::INDEX,
+                });
+        self.draw_mode = Some(DrawMode::Indexed {
+            format,
+            index_count,
+            index_buffer,
+        });
+        self.build()
+    }
+    fn build(self) -> Drawable {
         let mut layouts = self.layouts;
         for (layout, attribute) in layouts.iter_mut().zip(self.attributes.iter()) {
             layout.attributes = attribute;
         }
         let vertex_state = wgpu::VertexState {
-            module: &self.vtx_shader_module,
+            module: self.vtx_shader_module,
             entry_point: None,
             buffers: &layouts,
             compilation_options: Default::default(),
         };
         let fragment_state = wgpu::FragmentState {
-            module: &self.frg_shader_module,
+            module: self.frg_shader_module,
             entry_point: None,
             targets: &[Some(wgpu::ColorTargetState {
                 format: self.context.surface_config.format,
@@ -174,43 +210,42 @@ impl<'a> DrawableBuilder<'a> {
                     multiview: None,
                 });
 
-
-        let transform_buffer = self.context
+        let transform_buffer =
+            self.context
                 .device
                 .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: Some("Transform Buffer"),
                     contents: bytemuck::cast_slice(&M4X4_ID_UNIFORM),
                     usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
                 });
-        let transform_bind_group = self.context
-            .device
-            .create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("Transform bind group"),
-                layout: &self.context.transform_bind_group_layout,
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: transform_buffer.as_entire_binding(),
-                }],
-            });
+        let transform_bind_group =
+            self.context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("Transform bind group"),
+                    layout: &self.context.transform_bind_group_layout,
+                    entries: &[wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: transform_buffer.as_entire_binding(),
+                    }],
+                });
         let blend_color_opacity = wgpu::Color::WHITE;
 
-        return Drawable {
+        Drawable {
+            draw_mode: self.draw_mode.unwrap(),
             buffers: self.buffers,
-            //vertex_indices: None,
-            vertex_count: self.vertex_count,
             instance_count: self.instance_count,
             pipeline,
             transform_buffer,
             transform_bind_group,
             blend_color_opacity,
-        };
+        }
     }
 }
 
-pub struct Drawable { // Pas besoin de 'a !!!!!
+pub struct Drawable {
+    draw_mode: DrawMode,
     buffers: Vec<wgpu::Buffer>,
-    //vertex_indices: Option<&' [[u16; 3]]>,
-    vertex_count: u32,
     instance_count: u32,
     pipeline: wgpu::RenderPipeline,
     // test
@@ -245,15 +280,22 @@ impl Drawable {
         for (slot, vertex_buffer) in self.buffers.iter().enumerate() {
             render_pass.set_vertex_buffer(slot as u32, vertex_buffer.slice(..));
         }
-        //if let Some(indices) = self.instance_count {
-        //    render_pass.set_index_buffer(buffer_slice, index_format);
-        //}
+        match &self.draw_mode {
+            DrawMode::Direct { vertex_count } => {
+                render_pass.draw(0..*vertex_count, 0..self.instance_count);
+            }
+            DrawMode::Indexed {
+                format,
+                index_count,
+                index_buffer,
+            } => {
+                render_pass.set_index_buffer(index_buffer.slice(..), *format);
+                render_pass.draw_indexed(0..*index_count, 0, 0..self.instance_count);
+            }
+        }
         render_pass.set_blend_constant(self.blend_color_opacity);
-        render_pass.draw(0..self.vertex_count, 0..self.instance_count);
     }
 }
-
-
 
 pub struct MultiSampleConfig {
     multisample_enabled: bool,
@@ -479,6 +521,14 @@ impl DrawContext {
             pipeline_layout,
             depth_texture,
         })
+    }
+
+    pub fn create_shader_module(&self, wgsl_shader: &str) -> wgpu::ShaderModule {
+        self.device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: None,
+                source: wgpu::ShaderSource::Wgsl(wgsl_shader.into()),
+            })
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {

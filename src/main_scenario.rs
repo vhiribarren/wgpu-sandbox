@@ -23,7 +23,7 @@ SOFTWARE.
 */
 
 use demo_cube_wgpu::draw_context::DrawContext;
-use demo_cube_wgpu::primitives::{triangle, Object3D};
+use demo_cube_wgpu::primitives::{cube, Object3D};
 use demo_cube_wgpu::scenario::{Scenario, UpdateInterval};
 
 const DEFAULT_SHADER: &str = include_str!(concat!(
@@ -34,39 +34,26 @@ const DEFAULT_SHADER: &str = include_str!(concat!(
 const ROTATION_DEG_PER_S: f32 = 45.0;
 
 pub struct MainScenario {
-    pub triangle: Object3D,
+    pub cube: Object3D,
 }
 
 impl Scenario for MainScenario {
     fn new(draw_context: &DrawContext) -> Self {
-        let default_shader_module =
-            draw_context
-                .device
-                .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: Some("Fragment Shader"),
-                    source: wgpu::ShaderSource::Wgsl(DEFAULT_SHADER.into()),
-                });
-                let default_shader_module2 =
-            draw_context
-                .device
-                .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: Some("Fragment Shader"),
-                    source: wgpu::ShaderSource::Wgsl(DEFAULT_SHADER.into()),
-                });
-        let triangle = triangle::create_triangle(draw_context, default_shader_module, default_shader_module2);
-        Self { triangle }
+        let shader_module = draw_context.create_shader_module(DEFAULT_SHADER);
+        let cube = cube::create_cube(draw_context, &shader_module, &shader_module).unwrap();
+        Self { cube }
     }
     fn update(&mut self, context: &DrawContext, update_interval: &UpdateInterval) {
         let total_seconds = update_interval.scenario_start.elapsed().as_secs_f32();
         let new_rotation = ROTATION_DEG_PER_S * total_seconds;
+        // Translation on z to be in the clipped space (between -w and w) and camera in front of the cube
+        let z_translation: cgmath::Matrix4<f32> =
+            cgmath::Matrix4::from_translation(cgmath::Vector3::new(0.0, 0.0, 1.0));
         let transform: cgmath::Matrix4<f32> =
             cgmath::Matrix4::from_angle_z(cgmath::Deg(new_rotation));
-        self.triangle.set_transform(context, transform);
+        self.cube.set_transform(context, transform * z_translation);
     }
-    fn render<'drawable, 'render>(
-        &'drawable self,
-        render_pass: &'render mut wgpu::RenderPass<'drawable>,
-    ) {
-        self.triangle.as_ref().render(render_pass);
+    fn render<'drawable>(&'drawable self, render_pass: &mut wgpu::RenderPass<'drawable>) {
+        self.cube.as_ref().render(render_pass);
     }
 }

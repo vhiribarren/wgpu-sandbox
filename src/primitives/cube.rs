@@ -21,9 +21,9 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
-/* 
-use crate::draw_context::Drawable;
-use crate::draw_context::{DrawContext, Vertex};
+
+use crate::draw_context::DrawContext;
+use crate::draw_context::DrawableBuilder;
 use crate::primitives::Object3D;
 
 const COLOR_WHITE: [f32; 3] = [1., 1., 1.];
@@ -35,75 +35,74 @@ const COLOR_YELLOW: [f32; 3] = [1., 1., 0.];
 const COLOR_CYAN: [f32; 3] = [0., 1., 1.];
 const COLOR_MAGENTA: [f32; 3] = [1., 0., 1.];
 
-const CUBE_VERTICES: &[Vertex] = &[
-    Vertex {
-        position: [-0.5, 0.5, -0.5],
-        color: COLOR_MAGENTA,
-    },
-    Vertex {
-        position: [0.5, 0.5, -0.5],
-        color: COLOR_WHITE,
-    },
-    Vertex {
-        position: [0.5, -0.5, -0.5],
-        color: COLOR_RED,
-    },
-    Vertex {
-        position: [-0.5, -0.5, -0.5],
-        color: COLOR_BLACK,
-    },
-    Vertex {
-        position: [-0.5, 0.5, 0.5],
-        color: COLOR_BLUE,
-    },
-    Vertex {
-        position: [0.5, 0.5, 0.5],
-        color: COLOR_YELLOW,
-    },
-    Vertex {
-        position: [0.5, -0.5, 0.5],
-        color: COLOR_CYAN,
-    },
-    Vertex {
-        position: [-0.5, -0.5, 0.5],
-        color: COLOR_GREEN,
-    },
+#[rustfmt::skip]
+const CUBE_GEOMETRY: &[f32] = &[
+    -0.5, 0.5, -0.5,
+    0.5, 0.5, -0.5,
+    0.5, -0.5, -0.5,
+    -0.5, -0.5, -0.5,
+    -0.5, 0.5, 0.5,
+    0.5, 0.5, 0.5,
+    0.5, -0.5, 0.5,
+    -0.5, -0.5, 0.5,
 ];
-
-const CUBE_INDICES: &[[u16; 3]] = &[
+#[rustfmt::skip]
+const CUBE_INDICES: &[u16] = &[
     // Front
-    [0, 2, 1],
-    [0, 3, 2],
+    0, 2, 1,
+    0, 3, 2,
     // Back
-    [5, 7, 4],
-    [5, 6, 7],
+    5, 7, 4,
+    5, 6, 7,
     // Above
-    [4, 1, 5],
-    [4, 0, 1],
+    4, 1, 5,
+    4, 0, 1,
     // Below
-    [6, 3, 7],
-    [6, 2, 3],
+    6, 3, 7,
+    6, 2, 3,
     // Left side
-    [7, 0, 4],
-    [7, 3, 0],
+    7, 0, 4,
+    7, 3, 0,
     // Right side
-    [2, 5, 1],
-    [2, 6, 5],
+    2, 5, 1,
+    2, 6, 5,
+];
+#[rustfmt::skip]
+const CUBE_COLOR: &[f32] = &[
+    1., 1., 1.,
+    0., 0., 0.,
+    1., 0., 0.,
+    0., 1., 0.,
+    0., 0., 1.,
+    1., 1., 0.,
+    0., 1., 1.,
+    1., 0., 1.,
 ];
 
 pub fn create_cube(
     context: &DrawContext,
-    vertex_state: wgpu::VertexState,
-    fragment_state: wgpu::FragmentState,
-) -> Object3D {
-    let drawable = Drawable::init_indexed(
-        context,
-        CUBE_VERTICES,
+    vtx_module: &wgpu::ShaderModule,
+    frg_module: &wgpu::ShaderModule,
+) -> Result<Object3D, anyhow::Error> {
+    let mut drawable_builder = DrawableBuilder::new(context, vtx_module, frg_module);
+    drawable_builder
+        .add_attribute(
+            0,
+            wgpu::VertexStepMode::Vertex,
+            CUBE_GEOMETRY,
+            wgpu::VertexFormat::Float32x3,
+        )?
+        .add_attribute(
+            1,
+            wgpu::VertexStepMode::Vertex,
+            CUBE_COLOR,
+            wgpu::VertexFormat::Float32x3,
+        )?;
+    let drawable = drawable_builder.build_for_indexed_draw(
+        wgpu::IndexFormat::Uint16,
+        CUBE_INDICES.len() as u32,
         CUBE_INDICES,
-        vertex_state,
-        fragment_state,
     );
-    Object3D::from_drawable(drawable)
+    //with_index_count? soit vertex count, soit indices .set_index_count(CUBE_VERTEX_COUNT);
+    Ok(Object3D::from_drawable(drawable))
 }
-
-*/

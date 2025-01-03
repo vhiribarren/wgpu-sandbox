@@ -23,35 +23,41 @@ SOFTWARE.
 */
 
 use crate::draw_context::{DrawContext, DrawableBuilder};
-use crate::draw_context::{Drawable};
 use crate::primitives::Object3D;
 
-
-const TRIANGLE_GEOMETRY: &[f32] = &[0., 1., 0., -1., -1., 0., 1., -1., 0.];
-
-const TRIANGLE_COLOR: &[f32] = &[1., 0., 0., 0., 1., 0., 0., 0., 1.];
+#[rustfmt::skip]
+const TRIANGLE_GEOMETRY: &[f32] = &[
+    0., 2., 0.,
+    -1.732, -1.0, 0.,
+    1.732, -1.0, 0.,
+];
+#[rustfmt::skip]
+const TRIANGLE_COLOR: &[f32] = &[
+    1., 0., 0.,
+    0., 1., 0.,
+    0., 0., 1.];
 
 const TRIANGLE_VERTEX_COUNT: u32 = TRIANGLE_GEOMETRY.len() as u32 / 3;
 
-pub fn create_triangle<'a>(
-    context: &'a DrawContext,
-    vtx_module: wgpu::ShaderModule,
-    frg_module: wgpu::ShaderModule,
-) -> Object3D {
+pub fn create_equilateral_triangle(
+    context: &DrawContext,
+    vtx_module: &wgpu::ShaderModule,
+    frg_module: &wgpu::ShaderModule,
+) -> Result<Object3D, anyhow::Error> {
     let mut drawable_builder = DrawableBuilder::new(context, vtx_module, frg_module);
     drawable_builder
-    .add_attribute(
-        0,
-        wgpu::VertexStepMode::Vertex,
-        TRIANGLE_GEOMETRY,
-        wgpu::VertexFormat::Float32x3,
-    ).unwrap()
-    .add_attribute(
-        1,
-        wgpu::VertexStepMode::Vertex,
-        TRIANGLE_COLOR,
-        wgpu::VertexFormat::Float32x3,
-    ).unwrap()
-    .set_index_count(TRIANGLE_VERTEX_COUNT);
-    Object3D::from_drawable(drawable_builder.build())
+        .add_attribute(
+            0,
+            wgpu::VertexStepMode::Vertex,
+            TRIANGLE_GEOMETRY,
+            wgpu::VertexFormat::Float32x3,
+        )?
+        .add_attribute(
+            1,
+            wgpu::VertexStepMode::Vertex,
+            TRIANGLE_COLOR,
+            wgpu::VertexFormat::Float32x3,
+        )?;
+    let drawable = drawable_builder.build_for_direct_draw(TRIANGLE_VERTEX_COUNT);
+    Ok(Object3D::from_drawable(drawable))
 }

@@ -39,14 +39,10 @@ pub struct MainScenario {
 
 impl Scenario for MainScenario {
     fn new(draw_context: &DrawContext) -> Self {
-        let default_shader_module =
-            draw_context
-                .device
-                .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: Some("Fragment Shader"),
-                    source: wgpu::ShaderSource::Wgsl(DEFAULT_SHADER.into()),
-                });
-        let triangle = triangle::create_triangle(draw_context, &default_shader_module, &default_shader_module);
+        let shader_module = draw_context.create_shader_module(DEFAULT_SHADER);
+        let triangle =
+            triangle::create_equilateral_triangle(draw_context, &shader_module, &shader_module)
+                .unwrap();
         Self { triangle }
     }
     fn update(&mut self, context: &DrawContext, update_interval: &UpdateInterval) {
