@@ -24,8 +24,9 @@ SOFTWARE.
 
 use crate::draw_context::DrawContext;
 use crate::draw_context::DrawableBuilder;
-use crate::primitives::Object3D;
+use crate::draw_context::IndexData;
 use crate::primitives::color;
+use crate::primitives::Object3D;
 
 #[rustfmt::skip]
 const CUBE_GEOMETRY: &[[f32; 3]] = &[
@@ -75,6 +76,7 @@ pub struct CubeOptions {
     pub with_alpha: bool,
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for CubeOptions {
     fn default() -> Self {
         Self { with_alpha: false }
@@ -111,11 +113,7 @@ pub fn create_cube(
             alpha: Default::default(),
         });
     }
-    let drawable = drawable_builder.build_for_indexed_draw(
-        wgpu::IndexFormat::Uint16,
-        CUBE_INDICES.len() as u32,
-        CUBE_INDICES,
-    );
+    let drawable = drawable_builder.build_for_indexed_draw(IndexData::U16(CUBE_INDICES));
     //with_index_count? soit vertex count, soit indices .set_index_count(CUBE_VERTEX_COUNT);
     Ok(Object3D::from_drawable(drawable))
 }

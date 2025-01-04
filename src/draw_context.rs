@@ -58,6 +58,32 @@ pub enum DrawMode {
     },
 }
 
+pub enum IndexData<'a> {
+    U32(&'a [u32]),
+    U16(&'a [u16]),
+}
+
+impl IndexData<'_> {
+    pub fn format(&self) -> wgpu::IndexFormat {
+        match self {
+            IndexData::U32(_) => wgpu::IndexFormat::Uint32,
+            IndexData::U16(_) => wgpu::IndexFormat::Uint16,
+        }
+    }
+    pub fn size(&self) -> u32 {
+        match self {
+            IndexData::U32(data) => data.len() as u32,
+            IndexData::U16(data) => data.len() as u32,
+        }
+    }
+    pub fn data(&self) -> &[u8] {
+        match self {
+            IndexData::U32(data) => bytemuck::cast_slice(data),
+            IndexData::U16(data) => bytemuck::cast_slice(data),
+        }
+    }
+}
+
 pub struct DrawableBuilder<'a> {
     context: &'a DrawContext,
     vtx_shader_module: &'a wgpu::ShaderModule,
@@ -139,26 +165,18 @@ impl<'a> DrawableBuilder<'a> {
         self.draw_mode = Some(DrawMode::Direct { vertex_count });
         self.build()
     }
-    pub fn build_for_indexed_draw<T>(
-        mut self,
-        format: wgpu::IndexFormat,
-        index_count: u32,
-        data: &[T],
-    ) -> Drawable
-    where
-        T: bytemuck::NoUninit,
-    {
+    pub fn build_for_indexed_draw(mut self, index_data: IndexData) -> Drawable {
         let index_buffer =
             self.context
                 .device
                 .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: Some("Index Buffer"),
-                    contents: bytemuck::cast_slice(data),
+                    contents: index_data.data(),
                     usage: wgpu::BufferUsages::INDEX,
                 });
         self.draw_mode = Some(DrawMode::Indexed {
-            format,
-            index_count,
+            format: index_data.format(),
+            index_count: index_data.size(),
             index_buffer,
         });
         self.build()

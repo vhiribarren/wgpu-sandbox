@@ -22,9 +22,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+pub mod color;
 pub mod cube;
 pub mod triangle;
-pub mod color;
 
 use crate::draw_context::{DrawContext, Drawable};
 use cgmath::Matrix4;
