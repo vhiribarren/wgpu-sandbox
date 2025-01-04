@@ -24,6 +24,7 @@ SOFTWARE.
 
 pub mod cube;
 pub mod triangle;
+pub mod color;
 
 use crate::draw_context::{DrawContext, Drawable};
 use cgmath::Matrix4;

@@ -25,26 +25,18 @@ SOFTWARE.
 use crate::draw_context::DrawContext;
 use crate::draw_context::DrawableBuilder;
 use crate::primitives::Object3D;
-
-const COLOR_WHITE: [f32; 3] = [1., 1., 1.];
-const COLOR_BLACK: [f32; 3] = [0., 0., 0.];
-const COLOR_RED: [f32; 3] = [1., 0., 0.];
-const COLOR_GREEN: [f32; 3] = [0., 1., 0.];
-const COLOR_BLUE: [f32; 3] = [0., 0., 1.];
-const COLOR_YELLOW: [f32; 3] = [1., 1., 0.];
-const COLOR_CYAN: [f32; 3] = [0., 1., 1.];
-const COLOR_MAGENTA: [f32; 3] = [1., 0., 1.];
+use crate::primitives::color;
 
 #[rustfmt::skip]
-const CUBE_GEOMETRY: &[f32] = &[
-    -0.5, 0.5, -0.5,
-    0.5, 0.5, -0.5,
-    0.5, -0.5, -0.5,
-    -0.5, -0.5, -0.5,
-    -0.5, 0.5, 0.5,
-    0.5, 0.5, 0.5,
-    0.5, -0.5, 0.5,
-    -0.5, -0.5, 0.5,
+const CUBE_GEOMETRY: &[[f32; 3]] = &[
+    [-0.5, 0.5, -0.5],
+    [0.5, 0.5, -0.5],
+    [0.5, -0.5, -0.5],
+    [-0.5, -0.5, -0.5],
+    [-0.5, 0.5, 0.5],
+    [0.5, 0.5, 0.5],
+    [0.5, -0.5, 0.5],
+    [-0.5, -0.5, 0.5],
 ];
 #[rustfmt::skip]
 const CUBE_INDICES: &[u16] = &[
@@ -68,15 +60,15 @@ const CUBE_INDICES: &[u16] = &[
     2, 6, 5,
 ];
 #[rustfmt::skip]
-const CUBE_COLOR: &[f32] = &[
-    1., 1., 1.,
-    0., 0., 0.,
-    1., 0., 0.,
-    0., 1., 0.,
-    0., 0., 1.,
-    1., 1., 0.,
-    0., 1., 1.,
-    1., 0., 1.,
+const CUBE_COLOR: &[[f32; 3]] = &[
+    color::COLOR_WHITE, 
+    color::COLOR_BLACK, 
+    color::COLOR_RED, 
+    color::COLOR_GREEN, 
+    color::COLOR_BLUE, 
+    color::COLOR_YELLOW, 
+    color::COLOR_CYAN, 
+    color::COLOR_MAGENTA, 
 ];
 
 pub struct CubeOptions {
