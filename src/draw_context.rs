@@ -22,25 +22,16 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
 
 use crate::scenario::Scenario;
 use anyhow::{anyhow, bail, Ok};
+use bytemuck::NoUninit;
 use log::debug;
-use wgpu::util::{BufferInitDescriptor, DeviceExt};
-use wgpu::{
-    BindGroupLayoutDescriptor, BindingType, BufferBindingType, ShaderStages, SurfaceConfiguration,
-    Texture,
-};
+use wgpu::util::DeviceExt;
+use wgpu::{PipelineLayoutDescriptor, SurfaceConfiguration, Texture};
 use winit::window::Window;
-
-const M4X4_ID_UNIFORM: [[f32; 4]; 4] = [
-    [1., 0., 0., 0.],
-    [0., 1., 0., 0.],
-    [0., 0., 1., 0.],
-    [0., 0., 0., 1.],
-];
 
 pub struct Dimensions {
     pub width: u32,
@@ -84,6 +75,38 @@ impl IndexData<'_> {
     }
 }
 
+pub struct Uniform<T> {
+    value: T,
+    buffer: wgpu::Buffer,
+}
+
+impl<T: NoUninit> Uniform<T> {
+    pub fn new(context: &DrawContext, value: T) -> Self {
+        let buffer = context
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Uniform Buffer"),
+                contents: bytemuck::cast_slice(&[value]),
+                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
+            });
+        Self { value, buffer }
+    }
+    pub fn binding_resource(&self) -> wgpu::BindingResource {
+        self.buffer.as_entire_binding()
+    }
+    pub fn read_uniform(&self) -> &T {
+        &self.value
+    }
+    pub fn write_uniform(&mut self, context: &DrawContext, data: T) {
+        self.value = data;
+        context.queue.write_buffer(
+            &self.buffer,
+            0 as wgpu::BufferAddress,
+            bytemuck::cast_slice(&[self.value]),
+        );
+    }
+}
+
 pub struct DrawableBuilder<'a> {
     context: &'a DrawContext,
     vtx_shader_module: &'a wgpu::ShaderModule,
@@ -95,6 +118,7 @@ pub struct DrawableBuilder<'a> {
     layouts: Vec<wgpu::VertexBufferLayout<'a>>,
     instance_count: u32,
     blend_option: Option<wgpu::BlendState>,
+    binding_groups: BTreeMap<u32, BTreeMap<u32, wgpu::BindingResource<'a>>>,
 }
 
 impl<'a> DrawableBuilder<'a> {
@@ -111,6 +135,7 @@ impl<'a> DrawableBuilder<'a> {
             attributes: Vec::new(),
             buffers: Vec::new(),
             layouts: Vec::new(),
+            binding_groups: BTreeMap::new(),
             instance_count: 1,
             draw_mode: None,
             blend_option: None,
@@ -123,6 +148,20 @@ impl<'a> DrawableBuilder<'a> {
     pub fn set_blend_option(&mut self, blend_option: wgpu::BlendState) -> &mut Self {
         self.blend_option = Some(blend_option);
         self
+    }
+    pub fn add_uniform<T>(
+        &mut self,
+        bind_group: u32,
+        binding: u32,
+        uniform: &'a Uniform<T>,
+    ) -> Result<&mut Self, anyhow::Error>
+    where
+        T: bytemuck::NoUninit,
+    {
+        // TODO Ensure group and binding are not already used
+        let group = self.binding_groups.entry(bind_group).or_default();
+        group.insert(binding, uniform.binding_resource());
+        Ok(self)
     }
     pub fn add_attribute<T>(
         &mut self,
@@ -182,14 +221,54 @@ impl<'a> DrawableBuilder<'a> {
         self.build()
     }
     fn build(self) -> Drawable {
-        let mut layouts = self.layouts;
-        for (layout, attribute) in layouts.iter_mut().zip(self.attributes.iter()) {
+        let mut bind_groups = BTreeMap::<u32, wgpu::BindGroup>::new();
+        let mut bind_group_layouts = Vec::new();
+        for (group_id, group) in self.binding_groups {
+            let mut bind_group_layout_entries = Vec::new();
+            let mut bind_group_entries = Vec::new();
+            for (bind_id, bind) in group {
+                bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
+                    binding: bind_id,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                });
+                bind_group_entries.push(wgpu::BindGroupEntry {
+                    binding: bind_id,
+                    resource: bind,
+                });
+            }
+            let bind_group_layout =
+                self.context
+                    .device
+                    .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                        label: None,
+                        entries: &bind_group_layout_entries,
+                    });
+            let bind_group = self
+                .context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: None,
+                    layout: &bind_group_layout,
+                    entries: &bind_group_entries,
+                });
+            bind_group_layouts.push(bind_group_layout);
+            bind_groups.insert(group_id, bind_group);
+        }
+
+        let mut vertex_buffer_layouts = self.layouts;
+        for (layout, attribute) in vertex_buffer_layouts.iter_mut().zip(self.attributes.iter()) {
             layout.attributes = attribute;
         }
         let vertex_state = wgpu::VertexState {
             module: self.vtx_shader_module,
             entry_point: None,
-            buffers: &layouts,
+            buffers: &vertex_buffer_layouts,
             compilation_options: Default::default(),
         };
         let fragment_state = wgpu::FragmentState {
@@ -202,13 +281,21 @@ impl<'a> DrawableBuilder<'a> {
             })],
             compilation_options: Default::default(),
         };
+        let pipeline_layout =
+            self.context
+                .device
+                .create_pipeline_layout(&PipelineLayoutDescriptor {
+                    label: None,
+                    bind_group_layouts: &bind_group_layouts.iter().collect::<Vec<_>>(), // Not sure if right order here
+                    push_constant_ranges: &[],
+                });
         let pipeline =
             self.context
                 .device
                 .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                     cache: None,
                     label: Some("Render Pipeline"),
-                    layout: Some(&self.context.pipeline_layout),
+                    layout: Some(&pipeline_layout),
                     vertex: vertex_state,
                     fragment: Some(fragment_state),
                     primitive: wgpu::PrimitiveState {
@@ -233,26 +320,6 @@ impl<'a> DrawableBuilder<'a> {
                     },
                     multiview: None,
                 });
-
-        let transform_buffer =
-            self.context
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Transform Buffer"),
-                    contents: bytemuck::cast_slice(&M4X4_ID_UNIFORM),
-                    usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
-                });
-        let transform_bind_group =
-            self.context
-                .device
-                .create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some("Transform bind group"),
-                    layout: &self.context.transform_bind_group_layout,
-                    entries: &[wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: transform_buffer.as_entire_binding(),
-                    }],
-                });
         let blend_color_opacity = wgpu::Color::WHITE;
 
         Drawable {
@@ -260,8 +327,7 @@ impl<'a> DrawableBuilder<'a> {
             buffers: self.buffers,
             instance_count: self.instance_count,
             pipeline,
-            transform_buffer,
-            transform_bind_group,
+            bind_groups,
             blend_color_opacity,
         }
     }
@@ -272,22 +338,11 @@ pub struct Drawable {
     buffers: Vec<wgpu::Buffer>,
     instance_count: u32,
     pipeline: wgpu::RenderPipeline,
-    // test
-    transform_buffer: wgpu::Buffer,
-    transform_bind_group: wgpu::BindGroup,
     blend_color_opacity: wgpu::Color,
+    bind_groups: BTreeMap<u32, wgpu::BindGroup>,
 }
 
 impl Drawable {
-    pub fn set_transform(&mut self, context: &DrawContext, transform: impl AsRef<[[f32; 4]; 4]>) {
-        #[allow(clippy::unnecessary_cast)]
-        context.queue.write_buffer(
-            &self.transform_buffer,
-            0 as wgpu::BufferAddress,
-            bytemuck::cast_slice(transform.as_ref()),
-        );
-    }
-
     pub fn set_blend_color_opacity(&mut self, value: f64) {
         let value = value.clamp(0., 1.);
         self.blend_color_opacity = wgpu::Color {
@@ -301,7 +356,9 @@ impl Drawable {
     pub fn render<'drawable>(&'drawable self, render_pass: &mut wgpu::RenderPass<'drawable>) {
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_blend_constant(self.blend_color_opacity);
-        render_pass.set_bind_group(1, &self.transform_bind_group, &[]);
+        for (group_id, bind_group) in &self.bind_groups {
+            render_pass.set_bind_group(*group_id, bind_group, &[]);
+        }
         for (slot, vertex_buffer) in self.buffers.iter().enumerate() {
             render_pass.set_vertex_buffer(slot as u32, vertex_buffer.slice(..));
         }
@@ -402,15 +459,11 @@ pub struct DrawContext {
     _adapter: wgpu::Adapter,
     multisample_texture: Option<wgpu::Texture>,
     surface: wgpu::Surface<'static>,
-    camera_buffer: wgpu::Buffer,
-    camera_bind_group: wgpu::BindGroup,
     pub multisample_config: MultiSampleConfig,
     pub depth_texture: wgpu::Texture,
     pub queue: wgpu::Queue,
-    pub transform_bind_group_layout: wgpu::BindGroupLayout,
     pub device: wgpu::Device,
     pub surface_config: wgpu::SurfaceConfiguration,
-    pub pipeline_layout: wgpu::PipelineLayout,
 }
 
 impl DrawContext {
@@ -481,52 +534,6 @@ impl DrawContext {
             present_mode: wgpu::PresentMode::Fifo,
         };
         surface.configure(&device, &surface_config);
-        let transform_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("Transform bind group"),
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-            });
-        let camera_buffer = device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("Camera Buffer"),
-            contents: bytemuck::cast_slice(&M4X4_ID_UNIFORM),
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
-        });
-        let camera_bind_group_layout =
-            device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-                label: None,
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: ShaderStages::VERTEX,
-                    ty: BindingType::Buffer {
-                        ty: BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-            });
-        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: None,
-            layout: &camera_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: camera_buffer.as_entire_binding(),
-            }],
-        });
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Pipeline Layout"),
-            bind_group_layouts: &[&camera_bind_group_layout, &transform_bind_group_layout],
-            push_constant_ranges: &[],
-        });
         let depth_texture = device.create_depth_texture(&surface_config, &multisample_config);
         let multisample_texture =
             device.create_multisample_texture(&surface_config, &multisample_config);
@@ -539,10 +546,6 @@ impl DrawContext {
             device,
             queue,
             surface_config,
-            camera_buffer,
-            camera_bind_group,
-            transform_bind_group_layout,
-            pipeline_layout,
             depth_texture,
         })
     }
@@ -568,12 +571,14 @@ impl DrawContext {
     }
 
     pub fn set_projection(&self, transform: impl AsRef<[[f32; 4]; 4]>) {
+        /*/
         #[allow(clippy::unnecessary_cast)]
         self.queue.write_buffer(
             &self.camera_buffer,
             0 as wgpu::BufferAddress,
             bytemuck::cast_slice(transform.as_ref()),
         );
+        */
     }
 
     pub fn render_scene<T: Scenario>(&self, scene: &T) -> anyhow::Result<()> {
@@ -626,9 +631,7 @@ impl DrawContext {
                 stencil_ops: None,
             }),
         });
-        render_pass.set_bind_group(Self::BIND_GROUP_INDEX_CAMERA, &self.camera_bind_group, &[]);
         scene.render(&mut render_pass);
-
         drop(render_pass);
         let command_buffers = std::iter::once(encoder.finish());
         self.queue.submit(command_buffers);

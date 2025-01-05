@@ -25,8 +25,11 @@ SOFTWARE.
 use crate::draw_context::DrawContext;
 use crate::draw_context::DrawableBuilder;
 use crate::draw_context::IndexData;
+use crate::draw_context::Uniform;
 use crate::primitives::color;
 use crate::primitives::Object3D;
+
+use super::M4X4_ID_UNIFORM;
 
 #[rustfmt::skip]
 const CUBE_GEOMETRY: &[[f32; 3]] = &[
@@ -89,6 +92,9 @@ pub fn create_cube(
     frg_module: &wgpu::ShaderModule,
     options: CubeOptions,
 ) -> Result<Object3D, anyhow::Error> {
+    let camera_uniform = Uniform::new(context, M4X4_ID_UNIFORM);
+    let transform_uniform = Uniform::new(context, M4X4_ID_UNIFORM);
+
     let mut drawable_builder = DrawableBuilder::new(context, vtx_module, frg_module);
     drawable_builder
         .add_attribute(
@@ -102,7 +108,9 @@ pub fn create_cube(
             wgpu::VertexStepMode::Vertex,
             CUBE_COLOR,
             wgpu::VertexFormat::Float32x3,
-        )?;
+        )?
+        .add_uniform(0, 0, &camera_uniform)?
+        .add_uniform(1, 0, &transform_uniform)?;
     if options.with_alpha {
         drawable_builder.set_blend_option(wgpu::BlendState {
             color: wgpu::BlendComponent {
@@ -115,5 +123,8 @@ pub fn create_cube(
     }
     let drawable = drawable_builder.build_for_indexed_draw(IndexData::U16(CUBE_INDICES));
     //with_index_count? soit vertex count, soit indices .set_index_count(CUBE_VERTEX_COUNT);
-    Ok(Object3D::from_drawable(drawable))
+    Ok(Object3D::from_drawable(
+        drawable,
+        transform_uniform,
+    ))
 }

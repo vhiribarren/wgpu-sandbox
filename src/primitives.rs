@@ -26,34 +26,49 @@ pub mod color;
 pub mod cube;
 pub mod triangle;
 
+use crate::draw_context::Uniform;
 use crate::draw_context::{DrawContext, Drawable};
 use cgmath::Matrix4;
 use cgmath::SquareMatrix;
+
+pub const M4X4_ID_UNIFORM: [[f32; 4]; 4] = [
+    [1., 0., 0., 0.],
+    [0., 1., 0., 0.],
+    [0., 0., 1., 0.],
+    [0., 0., 0., 1.],
+];
 
 pub struct Object3D {
     drawable: Drawable,
     transform: Matrix4<f32>,
     opacity: f32,
+    transform_uniform: Uniform<[[f32; 4]; 4]>,
 }
 
 impl Object3D {
-    pub fn from_drawable(drawable: Drawable) -> Self {
+    pub fn from_drawable(
+        drawable: Drawable,
+        transform_uniform: Uniform<[[f32; 4]; 4]>,
+    ) -> Self {
         Object3D {
             drawable,
             transform: Matrix4::<f32>::identity(),
             opacity: 1.0,
+            transform_uniform,
         }
     }
     pub fn set_transform(&mut self, context: &DrawContext, transform: Matrix4<f32>) {
         self.transform = transform;
-        self.drawable.set_transform(context, self.transform);
+        self.transform_uniform
+            .write_uniform(context, self.transform.into());
     }
     pub fn get_transform(&self) -> &Matrix4<f32> {
         &self.transform
     }
     pub fn apply_transform(&mut self, context: &DrawContext, transform: Matrix4<f32>) {
         self.transform = self.transform * transform; // TODO Shouldn't it be the opposite? But in that case that does not work
-        self.drawable.set_transform(context, self.transform);
+        self.transform_uniform
+            .write_uniform(context, self.transform.into());
     }
     pub fn set_opacity(&mut self, value: f32) {
         self.opacity = value.clamp(0., 1.);
