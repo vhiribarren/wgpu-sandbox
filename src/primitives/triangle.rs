@@ -50,7 +50,14 @@ pub fn create_equilateral_triangle(
     let camera_uniform = Uniform::new(context, M4X4_ID_UNIFORM);
     let transform_uniform = Uniform::new(context, M4X4_ID_UNIFORM);
 
-    let mut drawable_builder = DrawableBuilder::new(context, vtx_module, frg_module);
+    let mut drawable_builder = DrawableBuilder::new(
+        context,
+        vtx_module,
+        frg_module,
+        crate::draw_context::DrawModeParams::Direct {
+            vertex_count: TRIANGLE_VERTEX_COUNT,
+        },
+    );
     drawable_builder
         .add_attribute(
             0,
@@ -66,9 +73,6 @@ pub fn create_equilateral_triangle(
         )?
         .add_uniform(0, 0, &camera_uniform)?
         .add_uniform(1, 0, &transform_uniform)?;
-    let drawable = drawable_builder.build_for_direct_draw(TRIANGLE_VERTEX_COUNT);
-    Ok(Object3D::from_drawable(
-        drawable,
-        transform_uniform,
-    ))
+    let drawable = drawable_builder.build();
+    Ok(Object3D::from_drawable(drawable, transform_uniform))
 }

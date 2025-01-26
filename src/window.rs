@@ -33,7 +33,7 @@ use winit::window::{CursorIcon, Window, WindowId};
 
 use crate::cameras::{Camera, PerspectiveConfig, WinitCameraAdapter};
 use crate::draw_context::{self, Dimensions, DrawContext};
-use crate::scenario::{Scenario, UpdateInterval};
+use crate::scenario::{UpdateContext, UpdateInterval, WinitScenario};
 use log::debug;
 
 #[cfg(target_arch = "wasm32")]
@@ -100,7 +100,7 @@ struct App<S> {
     scenario: S,
 }
 
-impl<S: Scenario> App<S> {
+impl<S: WinitScenario> App<S> {
     async fn async_new(window: Window, dimensions: Option<Dimensions>) -> Self {
         let window = Arc::new(window);
         let mouse_state = MouseState::new();
@@ -142,7 +142,7 @@ impl<S> AppHandlerState<S> {
     }
 }
 
-impl<S: Scenario + 'static> ApplicationHandler<App<S>> for AppHandlerState<S> {
+impl<S: WinitScenario + 'static> ApplicationHandler<App<S>> for AppHandlerState<S> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.state.is_some() {
             return;
@@ -229,16 +229,15 @@ impl<S: Scenario + 'static> ApplicationHandler<App<S>> for AppHandlerState<S> {
             WindowEvent::RedrawRequested { .. } => {
                 let update_delta = app.last_draw_instant.elapsed();
                 app.last_draw_instant = Instant::now();
-                app.scenario.update(
-                    &app.draw_context,
-                    &UpdateInterval {
+                app.winit_camera.update();
+                app.scenario.update(&UpdateContext {
+                    draw_context: &app.draw_context,
+                    update_interval: &UpdateInterval {
                         scenario_start: app.scenario_start,
                         update_delta,
                     },
-                );
-                app.winit_camera.update();
-                app.draw_context
-                    .set_projection(app.winit_camera.get_camera_matrix());
+                    camera_matrix: app.winit_camera.get_camera_matrix(),
+                });
                 app.draw_context.render_scene(&app.scenario).unwrap();
             }
             _ => {}
@@ -282,7 +281,7 @@ impl<S: Scenario + 'static> ApplicationHandler<App<S>> for AppHandlerState<S> {
     }
 }
 
-pub fn init_event_loop<S: Scenario + 'static>() {
+pub fn init_event_loop<S: WinitScenario + 'static>() {
     let event_loop = EventLoop::with_user_event().build().unwrap();
     event_loop.set_control_flow(ControlFlow::Poll);
     let app_handler_state = &mut AppHandlerState::<S>::new(&event_loop);

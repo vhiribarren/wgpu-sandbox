@@ -26,6 +26,9 @@ pub mod color;
 pub mod cube;
 pub mod triangle;
 
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use crate::draw_context::Uniform;
 use crate::draw_context::{DrawContext, Drawable};
 use cgmath::Matrix4;
@@ -46,10 +49,10 @@ pub struct Object3D {
 }
 
 impl Object3D {
-    pub fn from_drawable(
-        drawable: Drawable,
-        transform_uniform: Uniform<[[f32; 4]; 4]>,
-    ) -> Self {
+    pub fn as_shareable(self) -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(self))
+    }
+    pub fn from_drawable(drawable: Drawable, transform_uniform: Uniform<[[f32; 4]; 4]>) -> Self {
         Object3D {
             drawable,
             transform: Matrix4::<f32>::identity(),

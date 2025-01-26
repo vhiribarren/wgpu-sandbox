@@ -24,11 +24,11 @@ SOFTWARE.
 
 use log::info;
 
-use crate::{scenario::Scenario, window::init_event_loop};
+use crate::{scenario::WinitScenario, window::init_event_loop};
 
 const GLOBAL_LOG_FILTER: log::LevelFilter = log::LevelFilter::Info;
 
-pub fn launch_scenario<S: Scenario + 'static>() {
+pub fn launch_scenario<S: WinitScenario + 'static>() {
     init_log();
     info!("Init app");
     init_event_loop::<S>();

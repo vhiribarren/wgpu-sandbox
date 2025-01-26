@@ -22,7 +22,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-use crate::draw_context::DrawContext;
+use crate::{
+    cameras::{Camera, PerspectiveConfig},
+    draw_context::DrawContext,
+};
+use cgmath::Matrix4;
 use web_time::{Duration, Instant};
 
 pub struct UpdateInterval {
@@ -30,8 +34,31 @@ pub struct UpdateInterval {
     pub update_delta: Duration,
 }
 
-pub trait Scenario {
+pub struct UpdateContext<'a> {
+    pub draw_context: &'a DrawContext,
+    pub update_interval: &'a UpdateInterval,
+    pub camera_matrix: Matrix4<f32>,
+}
+
+pub struct WinitConfig {
+    pub camera: Option<Camera>,
+    pub with_control: bool,
+}
+
+impl Default for WinitConfig {
+    fn default() -> Self {
+        Self {
+            camera: Some(PerspectiveConfig::default().into()),
+            with_control: true,
+        }
+    }
+}
+
+pub trait WinitScenario {
+    fn config() -> WinitConfig {
+        WinitConfig::default()
+    }
     fn new(draw_context: &DrawContext) -> Self;
-    fn update(&mut self, context: &DrawContext, update_interval: &UpdateInterval);
+    fn update(&mut self, update_context: &UpdateContext);
     fn render<'drawable>(&'drawable self, render_pass: &mut wgpu::RenderPass<'drawable>);
 }

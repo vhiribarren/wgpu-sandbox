@@ -27,4 +27,5 @@ pub mod draw_context;
 pub mod launcher;
 pub mod primitives;
 pub mod scenario;
+pub mod scene;
 pub mod window;

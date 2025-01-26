@@ -25,7 +25,7 @@ SOFTWARE.
 use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
 
-use crate::scenario::Scenario;
+use crate::scenario::WinitScenario;
 use anyhow::{anyhow, bail, Ok};
 use bytemuck::NoUninit;
 use log::debug;
@@ -38,7 +38,7 @@ pub struct Dimensions {
     pub height: u32,
 }
 
-pub enum DrawMode {
+enum DrawMode {
     Direct {
         vertex_count: u32,
     },
@@ -47,6 +47,11 @@ pub enum DrawMode {
         index_count: u32,
         index_buffer: wgpu::Buffer,
     },
+}
+
+pub enum DrawModeParams<'a> {
+    Direct { vertex_count: u32 },
+    Indexed { index_data: IndexData<'a> },
 }
 
 pub enum IndexData<'a> {
@@ -75,9 +80,19 @@ impl IndexData<'_> {
     }
 }
 
+pub trait UniformResource {
+    fn binding_resource(&self) -> wgpu::BindingResource;
+}
+
 pub struct Uniform<T> {
     value: T,
     buffer: wgpu::Buffer,
+}
+
+pub struct UniformSlot<'a> {
+    pub uniform: &'a dyn UniformResource,
+    pub bind_group: u32,
+    pub binding: u32,
 }
 
 impl<T: NoUninit> Uniform<T> {
@@ -107,6 +122,12 @@ impl<T: NoUninit> Uniform<T> {
     }
 }
 
+impl<T: NoUninit> UniformResource for Uniform<T> {
+    fn binding_resource(&self) -> wgpu::BindingResource {
+        self.buffer.as_entire_binding()
+    }
+}
+
 pub struct DrawableBuilder<'a> {
     context: &'a DrawContext,
     vtx_shader_module: &'a wgpu::ShaderModule,
@@ -114,7 +135,7 @@ pub struct DrawableBuilder<'a> {
     used_locations: HashSet<u32>,
     attributes: Vec<Vec<wgpu::VertexAttribute>>,
     buffers: Vec<wgpu::Buffer>,
-    draw_mode: Option<DrawMode>,
+    draw_mode: DrawMode,
     layouts: Vec<wgpu::VertexBufferLayout<'a>>,
     instance_count: u32,
     blend_option: Option<wgpu::BlendState>,
@@ -126,7 +147,26 @@ impl<'a> DrawableBuilder<'a> {
         context: &'a DrawContext,
         vtx_shader_module: &'a wgpu::ShaderModule,
         frg_shader_module: &'a wgpu::ShaderModule,
+        draw_params: DrawModeParams,
     ) -> Self {
+        let draw_mode = match draw_params {
+            DrawModeParams::Direct { vertex_count } => DrawMode::Direct { vertex_count },
+            DrawModeParams::Indexed { index_data } => {
+                let index_buffer =
+                    context
+                        .device
+                        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                            label: Some("Index Buffer"),
+                            contents: index_data.data(),
+                            usage: wgpu::BufferUsages::INDEX,
+                        });
+                DrawMode::Indexed {
+                    format: index_data.format(),
+                    index_count: index_data.size(),
+                    index_buffer,
+                }
+            }
+        };
         Self {
             context,
             vtx_shader_module,
@@ -137,7 +177,7 @@ impl<'a> DrawableBuilder<'a> {
             layouts: Vec::new(),
             binding_groups: BTreeMap::new(),
             instance_count: 1,
-            draw_mode: None,
+            draw_mode,
             blend_option: None,
         }
     }
@@ -200,27 +240,7 @@ impl<'a> DrawableBuilder<'a> {
         self.buffers.push(buffer);
         Ok(self)
     }
-    pub fn build_for_direct_draw(mut self, vertex_count: u32) -> Drawable {
-        self.draw_mode = Some(DrawMode::Direct { vertex_count });
-        self.build()
-    }
-    pub fn build_for_indexed_draw(mut self, index_data: IndexData) -> Drawable {
-        let index_buffer =
-            self.context
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Index Buffer"),
-                    contents: index_data.data(),
-                    usage: wgpu::BufferUsages::INDEX,
-                });
-        self.draw_mode = Some(DrawMode::Indexed {
-            format: index_data.format(),
-            index_count: index_data.size(),
-            index_buffer,
-        });
-        self.build()
-    }
-    fn build(self) -> Drawable {
+    pub fn build(self) -> Drawable {
         let mut bind_groups = BTreeMap::<u32, wgpu::BindGroup>::new();
         let mut bind_group_layouts = Vec::new();
         for (group_id, group) in self.binding_groups {
@@ -323,7 +343,7 @@ impl<'a> DrawableBuilder<'a> {
         let blend_color_opacity = wgpu::Color::WHITE;
 
         Drawable {
-            draw_mode: self.draw_mode.unwrap(),
+            draw_mode: self.draw_mode,
             buffers: self.buffers,
             instance_count: self.instance_count,
             pipeline,
@@ -353,7 +373,7 @@ impl Drawable {
         }
     }
 
-    pub fn render<'drawable>(&'drawable self, render_pass: &mut wgpu::RenderPass<'drawable>) {
+    pub fn render(&self, render_pass: &mut wgpu::RenderPass<'_>) {
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_blend_constant(self.blend_color_opacity);
         for (group_id, bind_group) in &self.bind_groups {
@@ -570,18 +590,7 @@ impl DrawContext {
             .create_multisample_texture(&self.surface_config, &self.multisample_config);
     }
 
-    pub fn set_projection(&self, transform: impl AsRef<[[f32; 4]; 4]>) {
-        /*/
-        #[allow(clippy::unnecessary_cast)]
-        self.queue.write_buffer(
-            &self.camera_buffer,
-            0 as wgpu::BufferAddress,
-            bytemuck::cast_slice(transform.as_ref()),
-        );
-        */
-    }
-
-    pub fn render_scene<T: Scenario>(&self, scene: &T) -> anyhow::Result<()> {
+    pub fn render_scene<T: WinitScenario>(&self, scene: &T) -> anyhow::Result<()> {
         let depth_texture_view = self
             .depth_texture
             .create_view(&wgpu::TextureViewDescriptor::default());
