@@ -139,7 +139,7 @@ pub struct DrawableBuilder<'a> {
     layouts: Vec<wgpu::VertexBufferLayout<'a>>,
     instance_count: u32,
     blend_option: Option<wgpu::BlendState>,
-    binding_groups: BTreeMap<u32, BTreeMap<u32, wgpu::BindingResource<'a>>>,
+    binding_groups: Vec<Option<BTreeMap<u32, wgpu::BindingResource<'a>>>>,
 }
 
 impl<'a> DrawableBuilder<'a> {
@@ -175,7 +175,7 @@ impl<'a> DrawableBuilder<'a> {
             attributes: Vec::new(),
             buffers: Vec::new(),
             layouts: Vec::new(),
-            binding_groups: BTreeMap::new(),
+            binding_groups: Vec::new(),
             instance_count: 1,
             draw_mode,
             blend_option: None,
@@ -198,9 +198,21 @@ impl<'a> DrawableBuilder<'a> {
     where
         T: bytemuck::NoUninit,
     {
+        let bind_group = bind_group as usize;
+        if bind_group >= self.binding_groups.len() {
+            self.binding_groups.resize(bind_group + 1, None);
+        }
+        match self.binding_groups.get_mut(bind_group).unwrap() {
+            Some(entry) => {
+                entry.insert(binding, uniform.binding_resource());
+            }
+            None => {
+                let mut bindings = BTreeMap::new();
+                bindings.insert(binding, uniform.binding_resource());
+                self.binding_groups[bind_group] = Some(bindings);
+            }
+        };
         // TODO Ensure group and binding are not already used
-        let group = self.binding_groups.entry(bind_group).or_default();
-        group.insert(binding, uniform.binding_resource());
         Ok(self)
     }
     pub fn add_attribute<T>(
@@ -243,24 +255,26 @@ impl<'a> DrawableBuilder<'a> {
     pub fn build(self) -> Drawable {
         let mut bind_groups = BTreeMap::<u32, wgpu::BindGroup>::new();
         let mut bind_group_layouts = Vec::new();
-        for (group_id, group) in self.binding_groups {
+        for (group_id, group) in self.binding_groups.into_iter().enumerate() {
             let mut bind_group_layout_entries = Vec::new();
             let mut bind_group_entries = Vec::new();
-            for (bind_id, bind) in group {
-                bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
-                    binding: bind_id,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                });
-                bind_group_entries.push(wgpu::BindGroupEntry {
-                    binding: bind_id,
-                    resource: bind,
-                });
+            if let Some(group) = group {
+                for (bind_id, bind) in group {
+                    bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
+                        binding: bind_id,
+                        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    });
+                    bind_group_entries.push(wgpu::BindGroupEntry {
+                        binding: bind_id,
+                        resource: bind,
+                    });
+                }
             }
             let bind_group_layout =
                 self.context
@@ -278,7 +292,7 @@ impl<'a> DrawableBuilder<'a> {
                     entries: &bind_group_entries,
                 });
             bind_group_layouts.push(bind_group_layout);
-            bind_groups.insert(group_id, bind_group);
+            bind_groups.insert(group_id as u32, bind_group);
         }
 
         let mut vertex_buffer_layouts = self.layouts;
