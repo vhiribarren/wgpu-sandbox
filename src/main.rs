@@ -27,5 +27,5 @@ mod main_scenario;
 use demo_cube_wgpu::launcher::launch_scenario;
 
 fn main() {
-    launch_scenario::<main_scenario::MainScenario>();
+    launch_scenario(|c| Box::new(main_scenario::MainScenario::scheduler(c)));
 }

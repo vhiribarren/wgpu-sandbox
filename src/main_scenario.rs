@@ -25,10 +25,11 @@ SOFTWARE.
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use demo_cube_wgpu::cameras::{PerspectiveConfig, WinitCameraAdapter};
 use demo_cube_wgpu::draw_context::DrawContext;
 use demo_cube_wgpu::primitives::cube::CubeOptions;
 use demo_cube_wgpu::primitives::{cube, Object3D};
-use demo_cube_wgpu::scenario::{UpdateContext, WinitScenario};
+use demo_cube_wgpu::scenario::{Scenario, ScenarioScheduler, UpdateContext};
 
 use demo_cube_wgpu::scene::{Scene, Scene3D};
 
@@ -51,10 +52,12 @@ pub struct MainScenario {
     pub cube_interpolated: Rc<RefCell<Object3D>>,
     pub cube_flat: Rc<RefCell<Object3D>>,
     pub scene: Scene3D,
+    pub camera: WinitCameraAdapter,
 }
 
-impl WinitScenario for MainScenario {
-    fn new(draw_context: &DrawContext) -> Self {
+impl MainScenario {
+    pub fn scheduler(draw_context: &DrawContext) -> ScenarioScheduler {
+        let camera = WinitCameraAdapter::new(PerspectiveConfig::default().into());
         let interpolated_shader_module = draw_context.create_shader_module(INTERPOLATED_SHADER);
         let flat_shader_module = draw_context.create_shader_module(FLAT_SHADER);
 
@@ -82,14 +85,29 @@ impl WinitScenario for MainScenario {
 
         scene.add(cube_interpolated.clone());
         scene.add(cube_flat.clone());
-
-        Self {
+        ScenarioScheduler::new(Box::new(Self {
             cube_interpolated,
             cube_flat,
             scene,
-        }
+            camera,
+        }))
     }
-    fn update(&mut self, update_context: &UpdateContext) {
+}
+
+impl Scenario for MainScenario {
+    fn camera_mut(&mut self) -> &mut WinitCameraAdapter {
+        &mut self.camera
+    }
+
+    fn scene_mut(&mut self) -> &mut Scene3D {
+        &mut self.scene
+    }
+
+    fn scene(&self) -> &Scene3D {
+        &self.scene
+    }
+
+    fn on_update(&mut self, update_context: &UpdateContext) {
         let update_interval = update_context.update_interval;
         let draw_context = update_context.draw_context;
         let delta_rotation = ROTATION_DEG_PER_S * update_interval.update_delta.as_secs_f32();
@@ -108,9 +126,5 @@ impl WinitScenario for MainScenario {
                 ) / 2_f32,
             );
         }
-        self.scene.update(update_context);
-    }
-    fn render<'drawable>(&'drawable self, render_pass: &mut wgpu::RenderPass<'drawable>) {
-        self.scene.render(render_pass);
     }
 }

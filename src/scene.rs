@@ -24,6 +24,8 @@ SOFTWARE.
 
 use std::{cell::RefCell, rc::Rc};
 
+use cgmath::Matrix4;
+
 use crate::{
     draw_context::{DrawContext, Drawable, Uniform},
     primitives::M4X4_ID_UNIFORM,
@@ -35,7 +37,6 @@ pub type DrawableWrapper = Rc<RefCell<dyn AsRef<Drawable>>>;
 pub trait Scene {
     fn add(&mut self, element: DrawableWrapper);
     fn drawables(&self) -> &[DrawableWrapper];
-    fn update(&mut self, context: &UpdateContext);
     fn render<'drawable>(&'drawable self, render_pass: &mut wgpu::RenderPass<'drawable>) {
         for drawable in self.drawables() {
             drawable.borrow().as_ref().render(render_pass);
@@ -67,10 +68,10 @@ impl Scene3D {
     pub fn scene_uniforms(&self) -> &Scene3DUniforms {
         &self.scene_uniforms
     }
-    pub fn update(&mut self, context: &UpdateContext) {
+    pub fn update(&mut self, context: &UpdateContext, camera_matrix: Matrix4<f32>) {
         self.scene_uniforms
             .camera_uniform
-            .write_uniform(context.draw_context, context.camera_matrix.into());
+            .write_uniform(context.draw_context, camera_matrix.into());
     }
 }
 
@@ -80,10 +81,5 @@ impl Scene for Scene3D {
     }
     fn drawables(&self) -> &[DrawableWrapper] {
         &self.drawables
-    }
-    fn update(&mut self, context: &UpdateContext) {
-        self.scene_uniforms
-            .camera_uniform
-            .write_uniform(context.draw_context, context.camera_matrix.into());
     }
 }

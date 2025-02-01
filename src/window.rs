@@ -31,9 +31,10 @@ use winit::event::{DeviceEvent, ElementState, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy};
 use winit::window::{CursorIcon, Window, WindowId};
 
-use crate::cameras::{Camera, PerspectiveConfig, WinitCameraAdapter};
 use crate::draw_context::{self, Dimensions, DrawContext};
-use crate::scenario::{UpdateContext, UpdateInterval, WinitScenario};
+use crate::scenario::{
+    UpdateContext, UpdateInterval, WinitEventLoopBuilder, WinitEventLoopHandler,
+};
 use log::debug;
 
 #[cfg(target_arch = "wasm32")]
@@ -89,60 +90,60 @@ impl MouseState {
     }
 }
 
-struct App<S> {
+struct App {
     window: Arc<Window>,
     mouse_state: MouseState,
     scenario_start: Instant,
     last_draw_instant: Instant,
     draw_period_target: Duration,
-    winit_camera: WinitCameraAdapter,
     draw_context: DrawContext,
-    scenario: S,
+    scenario: Box<dyn WinitEventLoopHandler>,
 }
 
-impl<S: WinitScenario> App<S> {
-    async fn async_new(window: Window, dimensions: Option<Dimensions>) -> Self {
+impl App {
+    async fn async_new(
+        window: Window,
+        dimensions: Option<Dimensions>,
+        builder: Box<WinitEventLoopBuilder>,
+    ) -> Self {
         let window = Arc::new(window);
         let mouse_state = MouseState::new();
         let scenario_start = Instant::now();
         let last_draw_instant = scenario_start;
         let draw_period_target = Duration::from_secs_f64(1.0 / TARGET_DRAW_FPS);
-        let winit_camera = WinitCameraAdapter::new(Camera::from(PerspectiveConfig {
-            //OrthogonalConfig {
-            ..Default::default()
-        }));
         let draw_context = draw_context::DrawContext::new(Arc::clone(&window), dimensions)
             .await
             .unwrap();
-        let scenario = S::new(&draw_context);
+        let scenario = builder(&draw_context);
         Self {
             window,
             mouse_state,
             scenario_start,
             last_draw_instant,
             draw_period_target,
-            winit_camera,
             draw_context,
             scenario,
         }
     }
 }
 
-struct AppHandlerState<S: 'static> {
-    state: Option<App<S>>,
-    event_loop_proxy: Option<EventLoopProxy<App<S>>>,
+struct AppHandlerState {
+    builder: Option<Box<WinitEventLoopBuilder>>,
+    state: Option<App>,
+    event_loop_proxy: Option<EventLoopProxy<App>>,
 }
 
-impl<S> AppHandlerState<S> {
-    fn new(event_loop: &EventLoop<App<S>>) -> Self {
+impl AppHandlerState {
+    fn new(event_loop: &EventLoop<App>, builder: Box<WinitEventLoopBuilder>) -> Self {
         Self {
+            builder: Some(builder),
             state: None,
             event_loop_proxy: Some(event_loop.create_proxy()),
         }
     }
 }
 
-impl<S: WinitScenario + 'static> ApplicationHandler<App<S>> for AppHandlerState<S> {
+impl ApplicationHandler<App> for AppHandlerState {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.state.is_some() {
             return;
@@ -170,7 +171,7 @@ impl<S: WinitScenario + 'static> ApplicationHandler<App<S>> for AppHandlerState<
         }
         let window = event_loop.create_window(window_attributes).unwrap();
         window.set_cursor(CursorIcon::Grab);
-        let app_future = App::<S>::async_new(window, dimensions);
+        let app_future = App::async_new(window, dimensions, self.builder.take().unwrap());
         let event_loop_proxy = self.event_loop_proxy.take().unwrap();
         #[cfg(target_arch = "wasm32")]
         {
@@ -187,7 +188,7 @@ impl<S: WinitScenario + 'static> ApplicationHandler<App<S>> for AppHandlerState<
         }
     }
 
-    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: App<S>) {
+    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: App) {
         self.state = Some(event);
     }
 
@@ -207,7 +208,7 @@ impl<S: WinitScenario + 'static> ApplicationHandler<App<S>> for AppHandlerState<
                     .resize(physical_size.width, physical_size.height);
             }
             WindowEvent::KeyboardInput { ref event, .. } => {
-                app.winit_camera.keyboard_event_listener(event);
+                app.scenario.on_keyboard_event(event);
             }
             WindowEvent::Moved { .. } => {
                 debug!("Window moved");
@@ -229,16 +230,16 @@ impl<S: WinitScenario + 'static> ApplicationHandler<App<S>> for AppHandlerState<
             WindowEvent::RedrawRequested { .. } => {
                 let update_delta = app.last_draw_instant.elapsed();
                 app.last_draw_instant = Instant::now();
-                app.winit_camera.update();
-                app.scenario.update(&UpdateContext {
+                app.scenario.on_update(&UpdateContext {
                     draw_context: &app.draw_context,
                     update_interval: &UpdateInterval {
                         scenario_start: app.scenario_start,
                         update_delta,
                     },
-                    camera_matrix: app.winit_camera.get_camera_matrix(),
                 });
-                app.draw_context.render_scene(&app.scenario).unwrap();
+                app.draw_context
+                    .render_scene(app.scenario.as_ref())
+                    .unwrap();
             }
             _ => {}
         }
@@ -261,7 +262,7 @@ impl<S: WinitScenario + 'static> ApplicationHandler<App<S>> for AppHandlerState<
             }
         }
         if app.mouse_state.is_mouse_rotation_enabled() {
-            app.winit_camera.mouse_event_listener(&event);
+            app.scenario.on_mouse_event(&event);
         }
     }
 
@@ -281,9 +282,9 @@ impl<S: WinitScenario + 'static> ApplicationHandler<App<S>> for AppHandlerState<
     }
 }
 
-pub fn init_event_loop<S: WinitScenario + 'static>() {
+pub fn init_event_loop(builder: Box<WinitEventLoopBuilder>) {
     let event_loop = EventLoop::with_user_event().build().unwrap();
     event_loop.set_control_flow(ControlFlow::Poll);
-    let app_handler_state = &mut AppHandlerState::<S>::new(&event_loop);
+    let app_handler_state = &mut AppHandlerState::new(&event_loop, builder);
     event_loop.run_app(app_handler_state).unwrap();
 }

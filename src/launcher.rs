@@ -24,14 +24,17 @@ SOFTWARE.
 
 use log::info;
 
-use crate::{scenario::WinitScenario, window::init_event_loop};
+use crate::{draw_context::DrawContext, scenario::WinitEventLoopHandler, window::init_event_loop};
 
 const GLOBAL_LOG_FILTER: log::LevelFilter = log::LevelFilter::Info;
 
-pub fn launch_scenario<S: WinitScenario + 'static>() {
+pub fn launch_scenario<F>(builder: F)
+where
+    F: Fn(&DrawContext) -> Box<dyn WinitEventLoopHandler> + 'static,
+{
     init_log();
     info!("Init app");
-    init_event_loop::<S>();
+    init_event_loop(Box::new(builder));
 }
 
 fn init_log() {

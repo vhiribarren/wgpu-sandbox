@@ -25,7 +25,7 @@ SOFTWARE.
 use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
 
-use crate::scenario::WinitScenario;
+use crate::scenario::WinitEventLoopHandler;
 use anyhow::{anyhow, bail, Ok};
 use bytemuck::NoUninit;
 use log::debug;
@@ -590,7 +590,7 @@ impl DrawContext {
             .create_multisample_texture(&self.surface_config, &self.multisample_config);
     }
 
-    pub fn render_scene<T: WinitScenario>(&self, scene: &T) -> anyhow::Result<()> {
+    pub fn render_scene(&self, scene: &dyn WinitEventLoopHandler) -> anyhow::Result<()> {
         let depth_texture_view = self
             .depth_texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -640,7 +640,7 @@ impl DrawContext {
                 stencil_ops: None,
             }),
         });
-        scene.render(&mut render_pass);
+        scene.on_render(&mut render_pass);
         drop(render_pass);
         let command_buffers = std::iter::once(encoder.finish());
         self.queue.submit(command_buffers);

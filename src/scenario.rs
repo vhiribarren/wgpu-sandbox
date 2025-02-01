@@ -23,11 +23,12 @@ SOFTWARE.
 */
 
 use crate::{
-    cameras::{Camera, PerspectiveConfig},
+    cameras::WinitCameraAdapter,
     draw_context::DrawContext,
+    scene::{Scene, Scene3D},
 };
-use cgmath::Matrix4;
 use web_time::{Duration, Instant};
+use winit::event::{DeviceEvent, KeyEvent};
 
 pub struct UpdateInterval {
     pub scenario_start: Instant,
@@ -37,28 +38,68 @@ pub struct UpdateInterval {
 pub struct UpdateContext<'a> {
     pub draw_context: &'a DrawContext,
     pub update_interval: &'a UpdateInterval,
-    pub camera_matrix: Matrix4<f32>,
 }
 
 pub struct WinitConfig {
-    pub camera: Option<Camera>,
     pub with_control: bool,
 }
 
 impl Default for WinitConfig {
     fn default() -> Self {
-        Self {
-            camera: Some(PerspectiveConfig::default().into()),
-            with_control: true,
-        }
+        Self { with_control: true }
     }
 }
 
-pub trait WinitScenario {
-    fn config() -> WinitConfig {
-        WinitConfig::default()
+//TODO Simplify, I could just use a function type, no need of a trait here ?? Do I need self?
+pub trait WinitEventLoopHandlerBuilder {
+    fn generate_handler(&mut self, draw_context: &DrawContext) -> Box<dyn WinitEventLoopHandler>;
+}
+
+pub trait WinitEventLoopHandler {
+    fn on_mouse_event(&mut self, event: &DeviceEvent);
+    fn on_keyboard_event(&mut self, event: &KeyEvent);
+    fn on_update(&mut self, update_context: &UpdateContext);
+    fn on_render<'drawable>(&'drawable self, render_pass: &mut wgpu::RenderPass<'drawable>);
+}
+
+pub trait Scenario {
+    fn camera_mut(&mut self) -> &mut WinitCameraAdapter;
+    fn scene(&self) -> &Scene3D;
+    fn scene_mut(&mut self) -> &mut Scene3D;
+    fn on_update(&mut self, update_context: &UpdateContext);
+}
+
+pub struct ScenarioScheduler {
+    scenario: Box<dyn Scenario>,
+}
+
+pub type WinitEventLoopBuilder = dyn Fn(&DrawContext) -> Box<dyn WinitEventLoopHandler>;
+
+impl ScenarioScheduler {
+    pub fn new(scenario: Box<dyn Scenario>) -> Self {
+        Self { scenario }
     }
-    fn new(draw_context: &DrawContext) -> Self;
-    fn update(&mut self, update_context: &UpdateContext);
-    fn render<'drawable>(&'drawable self, render_pass: &mut wgpu::RenderPass<'drawable>);
+}
+
+impl WinitEventLoopHandler for ScenarioScheduler {
+    fn on_mouse_event(&mut self, event: &DeviceEvent) {
+        self.scenario.camera_mut().mouse_event_listener(event);
+    }
+
+    fn on_keyboard_event(&mut self, event: &KeyEvent) {
+        self.scenario.camera_mut().keyboard_event_listener(event);
+    }
+
+    fn on_update(&mut self, update_context: &UpdateContext) {
+        self.scenario.camera_mut().update();
+        let camera_matrix = self.scenario.camera_mut().get_camera_matrix();
+        self.scenario
+            .scene_mut()
+            .update(update_context, camera_matrix);
+        self.scenario.on_update(update_context);
+    }
+
+    fn on_render<'drawable>(&'drawable self, render_pass: &mut wgpu::RenderPass<'drawable>) {
+        self.scenario.scene().render(render_pass);
+    }
 }
