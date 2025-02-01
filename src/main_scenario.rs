@@ -27,9 +27,10 @@ use std::rc::Rc;
 
 use demo_cube_wgpu::cameras::{PerspectiveConfig, WinitCameraAdapter};
 use demo_cube_wgpu::draw_context::DrawContext;
+use demo_cube_wgpu::gen_camera_scene;
 use demo_cube_wgpu::primitives::cube::CubeOptions;
 use demo_cube_wgpu::primitives::{cube, Object3D};
-use demo_cube_wgpu::scenario::{Scenario, ScenarioScheduler, UpdateContext};
+use demo_cube_wgpu::scenario::{Scenario, UpdateContext};
 
 use demo_cube_wgpu::scene::{Scene, Scene3D};
 
@@ -56,7 +57,7 @@ pub struct MainScenario {
 }
 
 impl MainScenario {
-    pub fn scheduler(draw_context: &DrawContext) -> ScenarioScheduler {
+    pub fn new(draw_context: &DrawContext) -> Self {
         let camera = WinitCameraAdapter::new(PerspectiveConfig::default().into());
         let interpolated_shader_module = draw_context.create_shader_module(INTERPOLATED_SHADER);
         let flat_shader_module = draw_context.create_shader_module(FLAT_SHADER);
@@ -85,27 +86,18 @@ impl MainScenario {
 
         scene.add(cube_interpolated.clone());
         scene.add(cube_flat.clone());
-        ScenarioScheduler::new(Box::new(Self {
+        Self {
             cube_interpolated,
             cube_flat,
             scene,
             camera,
-        }))
+        }
     }
 }
 
 impl Scenario for MainScenario {
-    fn camera_mut(&mut self) -> &mut WinitCameraAdapter {
-        &mut self.camera
-    }
 
-    fn scene_mut(&mut self) -> &mut Scene3D {
-        &mut self.scene
-    }
-
-    fn scene(&self) -> &Scene3D {
-        &self.scene
-    }
+    gen_camera_scene!(camera, scene);
 
     fn on_update(&mut self, update_context: &UpdateContext) {
         let update_interval = update_context.update_interval;
@@ -127,4 +119,6 @@ impl Scenario for MainScenario {
             );
         }
     }
+    
+
 }

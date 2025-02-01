@@ -28,7 +28,7 @@ use crate::{draw_context::DrawContext, scenario::WinitEventLoopHandler, window::
 
 const GLOBAL_LOG_FILTER: log::LevelFilter = log::LevelFilter::Info;
 
-pub fn launch_scenario<F>(builder: F)
+pub fn launch_app<F>(builder: F)
 where
     F: Fn(&DrawContext) -> Box<dyn WinitEventLoopHandler> + 'static,
 {

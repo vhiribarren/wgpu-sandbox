@@ -40,21 +40,6 @@ pub struct UpdateContext<'a> {
     pub update_interval: &'a UpdateInterval,
 }
 
-pub struct WinitConfig {
-    pub with_control: bool,
-}
-
-impl Default for WinitConfig {
-    fn default() -> Self {
-        Self { with_control: true }
-    }
-}
-
-//TODO Simplify, I could just use a function type, no need of a trait here ?? Do I need self?
-pub trait WinitEventLoopHandlerBuilder {
-    fn generate_handler(&mut self, draw_context: &DrawContext) -> Box<dyn WinitEventLoopHandler>;
-}
-
 pub trait WinitEventLoopHandler {
     fn on_mouse_event(&mut self, event: &DeviceEvent);
     fn on_keyboard_event(&mut self, event: &KeyEvent);
@@ -63,10 +48,29 @@ pub trait WinitEventLoopHandler {
 }
 
 pub trait Scenario {
+    fn camera(&self) -> &WinitCameraAdapter;
     fn camera_mut(&mut self) -> &mut WinitCameraAdapter;
     fn scene(&self) -> &Scene3D;
     fn scene_mut(&mut self) -> &mut Scene3D;
     fn on_update(&mut self, update_context: &UpdateContext);
+}
+
+#[macro_export]
+macro_rules! gen_camera_scene {
+    ($camera:ident, $scene:ident) => {
+        fn camera(&self) -> &WinitCameraAdapter {
+            &self.$camera
+        }
+        fn camera_mut(&mut self) -> &mut WinitCameraAdapter {
+            &mut self.$camera
+        }
+        fn scene(&self) -> &Scene3D {
+            &self.$scene
+        }
+        fn scene_mut(&mut self) -> &mut Scene3D {
+            &mut self.$scene
+        }
+    };
 }
 
 pub struct ScenarioScheduler {
@@ -76,8 +80,10 @@ pub struct ScenarioScheduler {
 pub type WinitEventLoopBuilder = dyn Fn(&DrawContext) -> Box<dyn WinitEventLoopHandler>;
 
 impl ScenarioScheduler {
-    pub fn new(scenario: Box<dyn Scenario>) -> Self {
-        Self { scenario }
+    pub fn run(scenario: impl Scenario + 'static) -> Box<dyn WinitEventLoopHandler> {
+        Box::new(Self {
+            scenario: Box::new(scenario),
+        })
     }
 }
 
@@ -92,7 +98,7 @@ impl WinitEventLoopHandler for ScenarioScheduler {
 
     fn on_update(&mut self, update_context: &UpdateContext) {
         self.scenario.camera_mut().update();
-        let camera_matrix = self.scenario.camera_mut().get_camera_matrix();
+        let camera_matrix = self.scenario.camera().get_camera_matrix();
         self.scenario
             .scene_mut()
             .update(update_context, camera_matrix);
