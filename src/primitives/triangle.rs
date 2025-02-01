@@ -28,19 +28,19 @@ use crate::primitives::Object3D;
 use super::{color, M4X4_ID_UNIFORM};
 
 #[rustfmt::skip]
-const TRIANGLE_GEOMETRY: &[[f32; 3]] = &[
+pub const TRIANGLE_GEOMETRY: &[[f32; 3]] = &[
     [0., 2., 0.],
     [-1.732, -1.0, 0.],
     [1.732, -1.0, 0.],
 ];
 #[rustfmt::skip]
-const TRIANGLE_COLOR: &[[f32;3]] = &[
+pub const TRIANGLE_COLOR: &[[f32;3]] = &[
     color::COLOR_RED,
     color::COLOR_GREEN,
     color::COLOR_BLUE,
 ];
 
-const TRIANGLE_VERTEX_COUNT: u32 = TRIANGLE_GEOMETRY.len() as u32;
+pub const TRIANGLE_VERTEX_COUNT: u32 = TRIANGLE_GEOMETRY.len() as u32;
 
 pub fn create_equilateral_triangle(
     context: &DrawContext,

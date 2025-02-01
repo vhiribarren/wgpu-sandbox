@@ -22,9 +22,15 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use demo_cube_wgpu::cameras::{PerspectiveConfig, WinitCameraAdapter};
 use demo_cube_wgpu::draw_context::DrawContext;
+use demo_cube_wgpu::gen_camera_scene;
 use demo_cube_wgpu::primitives::{cube, Object3D};
-use demo_cube_wgpu::scenario::{Scenario, UpdateInterval};
+use demo_cube_wgpu::scenario::Scenario;
+use demo_cube_wgpu::scene::{Scene, Scene3D};
 
 const INTERPOLATED_SHADER: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -39,57 +45,69 @@ const FLAT_SHADER: &str = include_str!(concat!(
 const ROTATION_DEG_PER_S: f32 = 45.0;
 
 pub struct MainScenario {
-    pub cube_left: Object3D,
-    pub cube_right: Object3D,
+    cube_left: Rc<RefCell<Object3D>>,
+    cube_right: Rc<RefCell<Object3D>>,
+    scene: Scene3D,
+    camera: WinitCameraAdapter,
 }
 
-impl Scenario for MainScenario {
-    fn new(draw_context: &DrawContext) -> Self {
+impl MainScenario {
+    pub fn new(draw_context: &DrawContext) -> Self {
+        let camera = WinitCameraAdapter::new(PerspectiveConfig::default().into());
+        let mut scene = Scene3D::new(draw_context);
         let interpolated_shader_module = draw_context.create_shader_module(INTERPOLATED_SHADER);
         let flat_shader_module = draw_context.create_shader_module(FLAT_SHADER);
-        let mut cube_left = cube::create_cube(
+        let cube_left = cube::create_cube(
             draw_context,
             &interpolated_shader_module,
             &interpolated_shader_module,
+            scene.scene_uniforms(),
             Default::default(),
         )
-        .unwrap();
-        let mut cube_right = cube::create_cube(
+        .unwrap()
+        .as_shareable();
+        let cube_right = cube::create_cube(
             draw_context,
             &flat_shader_module,
             &flat_shader_module,
+            scene.scene_uniforms(),
             Default::default(),
         )
-        .unwrap();
-        cube_left.apply_transform(
+        .unwrap()
+        .as_shareable();
+        cube_left.borrow_mut().apply_transform(
             draw_context,
             cgmath::Matrix4::from_translation(cgmath::Vector3::new(-0.5, 0.0, 5.0)),
         );
-        cube_right.apply_transform(
+        cube_right.borrow_mut().apply_transform(
             draw_context,
             cgmath::Matrix4::from_translation(cgmath::Vector3::new(0.5, 0.0, 0.0)),
         );
+        scene.add(cube_left.clone());
+        scene.add(cube_right.clone());
+
         Self {
             cube_left,
             cube_right,
+            scene,
+            camera,
         }
     }
-    fn update(&mut self, context: &DrawContext, update_interval: &UpdateInterval) {
-        let delta_rotation = ROTATION_DEG_PER_S * update_interval.update_delta.as_secs_f32();
-        self.cube_left.apply_transform(
-            context,
+}
+
+impl Scenario for MainScenario {
+    gen_camera_scene!(camera, scene);
+
+    fn on_update(&mut self, update_context: &demo_cube_wgpu::scenario::UpdateContext) {
+        let delta_rotation =
+            ROTATION_DEG_PER_S * update_context.update_interval.update_delta.as_secs_f32();
+        self.cube_left.borrow_mut().apply_transform(
+            update_context.draw_context,
             cgmath::Matrix4::from_angle_z(cgmath::Deg(delta_rotation)),
         );
-        self.cube_right.apply_transform(
-            context,
+        self.cube_right.borrow_mut().apply_transform(
+            update_context.draw_context,
             cgmath::Matrix4::from_angle_y(cgmath::Deg(delta_rotation)),
         );
-    }
-    fn render<'drawable, 'render>(
-        &'drawable self,
-        render_pass: &'render mut wgpu::RenderPass<'drawable>,
-    ) {
-        self.cube_right.as_ref().render(render_pass);
-        self.cube_left.as_ref().render(render_pass);
     }
 }

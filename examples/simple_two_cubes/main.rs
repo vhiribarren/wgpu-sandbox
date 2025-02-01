@@ -24,8 +24,9 @@ SOFTWARE.
 
 mod simple_two_cubes;
 
-use demo_cube_wgpu::launcher::launch_scenario;
+use demo_cube_wgpu::{launcher::launch_app, scenario::ScenarioScheduler};
+use simple_two_cubes::MainScenario;
 
 fn main() {
-    launch_scenario::<simple_two_cubes::MainScenario>();
+    launch_app(|c| ScenarioScheduler::run(MainScenario::new(c)));
 }

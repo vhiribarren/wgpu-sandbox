@@ -22,10 +22,17 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use demo_cube_wgpu::cameras::{PerspectiveConfig, WinitCameraAdapter};
 use demo_cube_wgpu::draw_context::DrawContext;
+use demo_cube_wgpu::gen_camera_scene;
 use demo_cube_wgpu::primitives::cube::CubeOptions;
 use demo_cube_wgpu::primitives::{cube, Object3D};
-use demo_cube_wgpu::scenario::{Scenario, UpdateInterval};
+use demo_cube_wgpu::scenario::{Scenario, UpdateContext};
+
+use demo_cube_wgpu::scene::{Scene, Scene3D};
 
 use web_time::Duration;
 
@@ -43,51 +50,72 @@ const ROTATION_DEG_PER_S: f32 = 45.0;
 const SHADER_TRANSITION_PERIOD: Duration = Duration::from_secs(1);
 
 pub struct MainScenario {
-    pub cube_interpolated: Object3D,
-    pub cube_flat: Object3D,
+    pub cube_interpolated: Rc<RefCell<Object3D>>,
+    pub cube_flat: Rc<RefCell<Object3D>>,
+    pub scene: Scene3D,
+    pub camera: WinitCameraAdapter,
 }
 
-impl Scenario for MainScenario {
-    fn new(draw_context: &DrawContext) -> Self {
+impl MainScenario {
+    pub fn new(draw_context: &DrawContext) -> Self {
+        let camera = WinitCameraAdapter::new(PerspectiveConfig::default().into());
         let interpolated_shader_module = draw_context.create_shader_module(INTERPOLATED_SHADER);
         let flat_shader_module = draw_context.create_shader_module(FLAT_SHADER);
+
+        let mut scene = Scene3D::new(draw_context);
+        let scene_uniforms = scene.scene_uniforms();
+
         let cube_interpolated = cube::create_cube(
             draw_context,
             &interpolated_shader_module,
             &interpolated_shader_module,
+            scene_uniforms,
             Default::default(),
         )
-        .unwrap();
+        .unwrap()
+        .as_shareable();
         let cube_flat = cube::create_cube(
             draw_context,
             &flat_shader_module,
             &flat_shader_module,
+            scene_uniforms,
             CubeOptions { with_alpha: true },
         )
-        .unwrap();
+        .unwrap()
+        .as_shareable();
+
+        scene.add(cube_interpolated.clone());
+        scene.add(cube_flat.clone());
         Self {
             cube_interpolated,
             cube_flat,
+            scene,
+            camera,
         }
     }
-    fn update(&mut self, context: &DrawContext, update_interval: &UpdateInterval) {
+}
+
+impl Scenario for MainScenario {
+    gen_camera_scene!(camera, scene);
+
+    fn on_update(&mut self, update_context: &UpdateContext) {
+        let update_interval = update_context.update_interval;
+        let draw_context = update_context.draw_context;
         let delta_rotation = ROTATION_DEG_PER_S * update_interval.update_delta.as_secs_f32();
         let transform = cgmath::Matrix4::from_angle_z(cgmath::Deg(delta_rotation))
             * cgmath::Matrix4::from_angle_y(cgmath::Deg(delta_rotation));
-        self.cube_interpolated.apply_transform(context, transform);
-        self.cube_flat.apply_transform(context, transform);
-        self.cube_flat.set_opacity(
-            0.5 + f32::sin(
-                2. * update_interval.scenario_start.elapsed().as_secs_f32()
-                    / SHADER_TRANSITION_PERIOD.as_secs_f32(),
-            ) / 2_f32,
-        );
-    }
-    fn render<'drawable, 'render>(
-        &'drawable self,
-        render_pass: &'render mut wgpu::RenderPass<'drawable>,
-    ) {
-        self.cube_interpolated.as_ref().render(render_pass);
-        self.cube_flat.as_ref().render(render_pass);
+        self.cube_interpolated
+            .borrow_mut()
+            .apply_transform(draw_context, transform);
+        {
+            let mut cube_flat = self.cube_flat.borrow_mut();
+            cube_flat.apply_transform(draw_context, transform);
+            cube_flat.set_opacity(
+                0.5 + f32::sin(
+                    2. * update_interval.scenario_start.elapsed().as_secs_f32()
+                        / SHADER_TRANSITION_PERIOD.as_secs_f32(),
+                ) / 2_f32,
+            );
+        }
     }
 }

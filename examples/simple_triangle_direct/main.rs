@@ -22,10 +22,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-mod simple_triangle;
+mod simple_triangle_direct;
 
-use demo_cube_wgpu::launcher::launch_scenario;
+use demo_cube_wgpu::launcher::launch_app;
+use simple_triangle_direct::MainScenario;
 
 fn main() {
-    launch_scenario::<simple_triangle::MainScenario>();
+    launch_app(|c| Box::new(MainScenario::new(c)));
 }

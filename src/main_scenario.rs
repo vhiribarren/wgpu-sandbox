@@ -96,7 +96,6 @@ impl MainScenario {
 }
 
 impl Scenario for MainScenario {
-
     gen_camera_scene!(camera, scene);
 
     fn on_update(&mut self, update_context: &UpdateContext) {
@@ -119,6 +118,4 @@ impl Scenario for MainScenario {
             );
         }
     }
-    
-
 }

@@ -22,9 +22,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+use std::rc::Rc;
+
+use demo_cube_wgpu::cameras::{PerspectiveConfig, WinitCameraAdapter};
 use demo_cube_wgpu::draw_context::DrawContext;
+use demo_cube_wgpu::gen_camera_scene;
 use demo_cube_wgpu::primitives::{cube, Object3D};
-use demo_cube_wgpu::scenario::{Scenario, UpdateInterval};
+use demo_cube_wgpu::scenario::{Scenario, UpdateContext};
+use demo_cube_wgpu::scene::{Scene, Scene3D};
 
 const DEFAULT_SHADER: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -34,32 +39,51 @@ const DEFAULT_SHADER: &str = include_str!(concat!(
 const ROTATION_DEG_PER_S: f32 = 45.0;
 
 pub struct MainScenario {
-    pub cube: Object3D,
+    pub cube: Rc<std::cell::RefCell<Object3D>>,
+    pub scene: Scene3D,
+    pub camera: WinitCameraAdapter,
 }
 
-impl Scenario for MainScenario {
-    fn new(draw_context: &DrawContext) -> Self {
+impl MainScenario {
+    pub fn new(draw_context: &DrawContext) -> Self {
+        let camera = WinitCameraAdapter::new(PerspectiveConfig::default().into());
         let shader_module = draw_context.create_shader_module(DEFAULT_SHADER);
+        let mut scene = Scene3D::new(draw_context);
         let cube = cube::create_cube(
             draw_context,
             &shader_module,
             &shader_module,
+            scene.scene_uniforms(),
             Default::default(),
         )
-        .unwrap();
-        Self { cube }
+        .unwrap()
+        .as_shareable();
+        scene.add(cube.clone());
+        Self {
+            cube,
+            scene,
+            camera,
+        }
     }
-    fn update(&mut self, context: &DrawContext, update_interval: &UpdateInterval) {
-        let total_seconds = update_interval.scenario_start.elapsed().as_secs_f32();
+}
+
+impl Scenario for MainScenario {
+    gen_camera_scene!(camera, scene);
+
+    fn on_update(&mut self, context: &UpdateContext) {
+        let total_seconds = context
+            .update_interval
+            .scenario_start
+            .elapsed()
+            .as_secs_f32();
         let new_rotation = ROTATION_DEG_PER_S * total_seconds;
         // Translation on z to be in the clipped space (between -w and w) and camera in front of the cube
         let z_translation: cgmath::Matrix4<f32> =
             cgmath::Matrix4::from_translation(cgmath::Vector3::new(0.0, 0.0, 1.0));
         let transform: cgmath::Matrix4<f32> =
             cgmath::Matrix4::from_angle_z(cgmath::Deg(new_rotation));
-        self.cube.set_transform(context, transform * z_translation);
-    }
-    fn render<'drawable>(&'drawable self, render_pass: &mut wgpu::RenderPass<'drawable>) {
-        self.cube.as_ref().render(render_pass);
+        self.cube
+            .borrow_mut()
+            .set_transform(context.draw_context, transform * z_translation);
     }
 }
