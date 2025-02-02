@@ -25,12 +25,12 @@ SOFTWARE.
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use demo_cube_wgpu::cameras::{PerspectiveConfig, WinitCameraAdapter};
-use demo_cube_wgpu::draw_context::DrawContext;
-use demo_cube_wgpu::gen_camera_scene;
-use demo_cube_wgpu::primitives::{cube, Object3D};
-use demo_cube_wgpu::scenario::Scenario;
-use demo_cube_wgpu::scene::{Scene, Scene3D};
+use wgpu_lite_wrapper::cameras::{PerspectiveConfig, WinitCameraAdapter};
+use wgpu_lite_wrapper::draw_context::DrawContext;
+use wgpu_lite_wrapper::gen_camera_scene;
+use wgpu_lite_wrapper::primitives::{cube, Object3D};
+use wgpu_lite_wrapper::scenario::Scenario;
+use wgpu_lite_wrapper::scene::{Scene, Scene3D};
 
 const INTERPOLATED_SHADER: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -98,7 +98,7 @@ impl MainScenario {
 impl Scenario for MainScenario {
     gen_camera_scene!(camera, scene);
 
-    fn on_update(&mut self, update_context: &demo_cube_wgpu::scenario::UpdateContext) {
+    fn on_update(&mut self, update_context: &wgpu_lite_wrapper::scenario::UpdateContext) {
         let delta_rotation =
             ROTATION_DEG_PER_S * update_context.update_interval.update_delta.as_secs_f32();
         self.cube_left.borrow_mut().apply_transform(

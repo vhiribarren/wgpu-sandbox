@@ -24,7 +24,7 @@ SOFTWARE.
 
 mod simple_cube;
 
-use demo_cube_wgpu::{launcher::launch_app, scenario::ScenarioScheduler};
+use wgpu_lite_wrapper::{launcher::launch_app, scenario::ScenarioScheduler};
 use simple_cube::MainScenario;
 
 fn main() {

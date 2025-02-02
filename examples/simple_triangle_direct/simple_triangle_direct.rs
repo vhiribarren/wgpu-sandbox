@@ -22,14 +22,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-use demo_cube_wgpu::draw_context::{
+use wgpu_lite_wrapper::draw_context::{
     DrawContext, DrawModeParams, Drawable, DrawableBuilder, Uniform,
 };
-use demo_cube_wgpu::primitives::triangle::{
+use wgpu_lite_wrapper::primitives::triangle::{
     TRIANGLE_COLOR, TRIANGLE_GEOMETRY, TRIANGLE_VERTEX_COUNT,
 };
-use demo_cube_wgpu::primitives::M4X4_ID_UNIFORM;
-use demo_cube_wgpu::scenario::{UpdateContext, WinitEventLoopHandler};
+use wgpu_lite_wrapper::primitives::M4X4_ID_UNIFORM;
+use wgpu_lite_wrapper::scenario::{UpdateContext, WinitEventLoopHandler};
 
 const DEFAULT_SHADER: &str = include_str!("./simple_triangle_direct.wgsl");
 

@@ -24,7 +24,7 @@ SOFTWARE.
 
 mod simple_triangle_direct;
 
-use demo_cube_wgpu::launcher::launch_app;
+use wgpu_lite_wrapper::launcher::launch_app;
 use simple_triangle_direct::MainScenario;
 
 fn main() {

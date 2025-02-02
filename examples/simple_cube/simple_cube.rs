@@ -24,12 +24,12 @@ SOFTWARE.
 
 use std::rc::Rc;
 
-use demo_cube_wgpu::cameras::{PerspectiveConfig, WinitCameraAdapter};
-use demo_cube_wgpu::draw_context::DrawContext;
-use demo_cube_wgpu::gen_camera_scene;
-use demo_cube_wgpu::primitives::{cube, Object3D};
-use demo_cube_wgpu::scenario::{Scenario, UpdateContext};
-use demo_cube_wgpu::scene::{Scene, Scene3D};
+use wgpu_lite_wrapper::cameras::{PerspectiveConfig, WinitCameraAdapter};
+use wgpu_lite_wrapper::draw_context::DrawContext;
+use wgpu_lite_wrapper::gen_camera_scene;
+use wgpu_lite_wrapper::primitives::{cube, Object3D};
+use wgpu_lite_wrapper::scenario::{Scenario, UpdateContext};
+use wgpu_lite_wrapper::scene::{Scene, Scene3D};
 
 const DEFAULT_SHADER: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),

@@ -1,6 +1,6 @@
-# WGPU-based experiments
+# wgpu lite wrapper
 
-Hobby project to test the Rust programming language and WebGPU.
+Hobby project to test the Rust programming language and WebGPU through wgpu.
 
 Used technologies: Rust, winit, WebAssembly, WebGPU, WebGL.
 
