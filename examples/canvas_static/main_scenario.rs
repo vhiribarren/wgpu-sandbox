@@ -1,7 +1,7 @@
 /*
 MIT License
 
-Copyright (c) 2021, 2022, 2024, 2025 Vincent Hiribarren
+Copyright (c) 2025 Vincent Hiribarren
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -22,11 +22,26 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-mod main_scenario;
+use wgpu_lite_wrapper::draw_context::{DrawContext, Drawable};
+use wgpu_lite_wrapper::primitives::canvas::create_canvas;
+use wgpu_lite_wrapper::scenario::WinitEventLoopHandler;
 
-use main_scenario::MainScenario;
-use wgpu_lite_wrapper::{launcher::launch_app, scenario::ScenarioScheduler};
+const CANVAS_STATIC_SHADER: &str = include_str!("./shader.wgsl");
 
-fn main() {
-    launch_app(|c| ScenarioScheduler::run(MainScenario::new(c)));
+pub struct MainScenario {
+    canvas: Drawable,
+}
+
+impl MainScenario {
+    pub fn new(draw_context: &DrawContext) -> Self {
+        let shader_module = draw_context.create_shader_module(CANVAS_STATIC_SHADER);
+        let canvas = create_canvas(draw_context, &shader_module, &shader_module).unwrap();
+        Self { canvas }
+    }
+}
+
+impl WinitEventLoopHandler for MainScenario {
+    fn on_render<'drawable>(&'drawable self, render_pass: &mut wgpu::RenderPass<'drawable>) {
+        self.canvas.render(render_pass);
+    }
 }

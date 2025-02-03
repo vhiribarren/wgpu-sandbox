@@ -1,7 +1,7 @@
 /*
 MIT License
 
-Copyright (c) 2021, 2022, 2024, 2025 Vincent Hiribarren
+Copyright (c) 2025 Vincent Hiribarren
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -22,11 +22,32 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-mod main_scenario;
+struct VertexInput {
+    @location(0) vtx_pos: vec2<f32>,
+}
 
-use main_scenario::MainScenario;
-use wgpu_lite_wrapper::{launcher::launch_app, scenario::ScenarioScheduler};
+struct VertexOutput {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+}
 
-fn main() {
-    launch_app(|c| ScenarioScheduler::run(MainScenario::new(c)));
+struct FragmentInput {
+    @builtin(position) screen_pos: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+};
+
+@vertex
+fn vertex(input: VertexInput) -> VertexOutput {
+    var output: VertexOutput;
+    output.clip_position = vec4<f32>(input.vtx_pos, 1.0, 1.0);
+    output.uv = (input.vtx_pos + vec2<f32>(1.0))/2.0;
+    output.uv.y = 1. - output.uv.y;
+    return output;
+}
+
+@fragment
+fn fragment(in: FragmentInput) -> @location(0) vec4<f32> {
+    var x = in.uv.x;
+    var y =  in.uv.y;
+    return vec4<f32>(x, y, 1.0, 1.0);
 }

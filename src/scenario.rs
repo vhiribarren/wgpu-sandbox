@@ -41,9 +41,9 @@ pub struct UpdateContext<'a> {
 }
 
 pub trait WinitEventLoopHandler {
-    fn on_mouse_event(&mut self, event: &DeviceEvent);
-    fn on_keyboard_event(&mut self, event: &KeyEvent);
-    fn on_update(&mut self, update_context: &UpdateContext);
+    fn on_mouse_event(&mut self, _event: &DeviceEvent) {}
+    fn on_keyboard_event(&mut self, _event: &KeyEvent) {}
+    fn on_update(&mut self, _update_context: &UpdateContext) {}
     fn on_render<'drawable>(&'drawable self, render_pass: &mut wgpu::RenderPass<'drawable>);
 }
 

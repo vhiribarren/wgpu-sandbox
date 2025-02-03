@@ -1,7 +1,7 @@
 /*
 MIT License
 
-Copyright (c) 2021, 2022, 2024, 2025 Vincent Hiribarren
+Copyright (c) 2025 Vincent Hiribarren
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -22,11 +22,35 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-mod main_scenario;
+use crate::draw_context::{DrawContext, Drawable, DrawableBuilder};
 
-use main_scenario::MainScenario;
-use wgpu_lite_wrapper::{launcher::launch_app, scenario::ScenarioScheduler};
+#[rustfmt::skip]
+pub const TRIANGLE_GEOMETRY_CANVAS: &[[f32; 2]] = &[
+    [-1., -1.],
+    [3., -1.],
+    [-1., 3.],
+];
 
-fn main() {
-    launch_app(|c| ScenarioScheduler::run(MainScenario::new(c)));
+pub fn create_canvas(
+    context: &DrawContext,
+    vtx_module: &wgpu::ShaderModule,
+    frg_module: &wgpu::ShaderModule,
+    //uniforms: &[Uniform]
+) -> Result<Drawable, anyhow::Error> {
+    let mut drawable_builder = DrawableBuilder::new(
+        context,
+        vtx_module,
+        frg_module,
+        crate::draw_context::DrawModeParams::Direct {
+            vertex_count: TRIANGLE_GEOMETRY_CANVAS.len() as u32,
+        },
+    );
+    drawable_builder.add_attribute(
+        0,
+        wgpu::VertexStepMode::Vertex,
+        TRIANGLE_GEOMETRY_CANVAS,
+        wgpu::VertexFormat::Float32x2,
+    )?;
+    let drawable = drawable_builder.build();
+    Ok(drawable)
 }

@@ -24,8 +24,8 @@ SOFTWARE.
 
 mod simple_triangle_direct;
 
-use wgpu_lite_wrapper::launcher::launch_app;
 use simple_triangle_direct::MainScenario;
+use wgpu_lite_wrapper::launcher::launch_app;
 
 fn main() {
     launch_app(|c| Box::new(MainScenario::new(c)));
