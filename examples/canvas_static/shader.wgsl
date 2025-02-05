@@ -22,8 +22,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+const canvas: array<vec2<f32>, 3> = array(
+    vec2<f32>(-1.0, -1.0),
+    vec2<f32>(3.0, -1.0),
+    vec2<f32>(-1.0, 3.0)
+);
+
 struct VertexInput {
-    @location(0) vtx_pos: vec2<f32>,
+    @builtin(vertex_index) vertex_index: u32,
 }
 
 struct VertexOutput {
@@ -38,9 +44,10 @@ struct FragmentInput {
 
 @vertex
 fn vertex(input: VertexInput) -> VertexOutput {
+    let vtx_coords = canvas[input.vertex_index];
     var output: VertexOutput;
-    output.clip_position = vec4<f32>(input.vtx_pos, 1.0, 1.0);
-    output.uv = (input.vtx_pos + vec2<f32>(1.0))/2.0;
+    output.clip_position = vec4<f32>(vtx_coords, 1.0, 1.0);
+    output.uv = (vtx_coords + vec2<f32>(1.0))/2.0;
     output.uv.y = 1. - output.uv.y;
     return output;
 }

@@ -22,8 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-use wgpu_lite_wrapper::draw_context::{DrawContext, Drawable};
-use wgpu_lite_wrapper::primitives::canvas::create_canvas;
+use wgpu_lite_wrapper::draw_context::{DrawContext, Drawable, DrawableBuilder};
 use wgpu_lite_wrapper::scenario::WinitEventLoopHandler;
 
 const CANVAS_STATIC_SHADER: &str = include_str!("./shader.wgsl");
@@ -35,7 +34,13 @@ pub struct MainScenario {
 impl MainScenario {
     pub fn new(draw_context: &DrawContext) -> Self {
         let shader_module = draw_context.create_shader_module(CANVAS_STATIC_SHADER);
-        let canvas = create_canvas(draw_context, &shader_module, &shader_module).unwrap();
+        let drawable_builder = DrawableBuilder::new(
+            draw_context,
+            &shader_module,
+            &shader_module,
+            wgpu_lite_wrapper::draw_context::DrawModeParams::Direct { vertex_count: 3 },
+        );
+        let canvas = drawable_builder.build();
         Self { canvas }
     }
 }
