@@ -80,22 +80,22 @@ impl IndexData<'_> {
     }
 }
 
-pub trait UniformResource {
-    fn binding_resource(&self) -> wgpu::BindingResource;
+pub trait UnitformType: NoUninit {}
+
+macro_rules! impl_uniform {
+    ( $($type:ty),+ ) => {
+        $( impl UnitformType for $type {} )*
+    };
 }
+impl_uniform!([[f32; 4]; 4]);
+impl_uniform!(f32, u32);
 
 pub struct Uniform<T> {
     value: T,
     buffer: wgpu::Buffer,
 }
 
-pub struct UniformSlot<'a> {
-    pub uniform: &'a dyn UniformResource,
-    pub bind_group: u32,
-    pub binding: u32,
-}
-
-impl<T: NoUninit> Uniform<T> {
+impl<T: UnitformType> Uniform<T> {
     pub fn new(context: &DrawContext, value: T) -> Self {
         let buffer = context
             .device
@@ -119,12 +119,6 @@ impl<T: NoUninit> Uniform<T> {
             0 as wgpu::BufferAddress,
             bytemuck::cast_slice(&[self.value]),
         );
-    }
-}
-
-impl<T: NoUninit> UniformResource for Uniform<T> {
-    fn binding_resource(&self) -> wgpu::BindingResource {
-        self.buffer.as_entire_binding()
     }
 }
 
@@ -196,7 +190,7 @@ impl<'a> DrawableBuilder<'a> {
         uniform: &'a Uniform<T>,
     ) -> Result<&mut Self, anyhow::Error>
     where
-        T: bytemuck::NoUninit,
+        T: UnitformType,
     {
         let bind_group = bind_group as usize;
         if bind_group >= self.binding_groups.len() {

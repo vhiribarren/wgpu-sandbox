@@ -22,30 +22,46 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-use wgpu_lite_wrapper::draw_context::{DrawContext, Drawable, DrawableBuilder};
-use wgpu_lite_wrapper::scenario::WinitEventLoopHandler;
+use wgpu_lite_wrapper::draw_context::{DrawContext, DrawModeParams, Drawable, DrawableBuilder, Uniform};
+use wgpu_lite_wrapper::scenario::{UpdateContext, WinitEventLoopHandler};
 
 const CANVAS_STATIC_SHADER: &str = include_str!("./shader.wgsl");
 
 pub struct MainScenario {
     canvas: Drawable,
+    time_uniform: Uniform<f32>,
 }
 
 impl MainScenario {
     pub fn new(draw_context: &DrawContext) -> Self {
+        let time_uniform = Uniform::new(draw_context, 0f32);
         let shader_module = draw_context.create_shader_module(CANVAS_STATIC_SHADER);
-        let drawable_builder = DrawableBuilder::new(
+        let mut drawable_builder = DrawableBuilder::new(
             draw_context,
             &shader_module,
             &shader_module,
-            wgpu_lite_wrapper::draw_context::DrawModeParams::Direct { vertex_count: 3 },
+            DrawModeParams::Direct { vertex_count: 3 },
         );
+        drawable_builder.add_uniform(0, 0, &time_uniform).unwrap();
         let canvas = drawable_builder.build();
-        Self { canvas }
+        Self {
+            canvas,
+            time_uniform,
+        }
     }
 }
 
 impl WinitEventLoopHandler for MainScenario {
+    fn on_update(&mut self, update_context: &UpdateContext) {
+        let &UpdateContext {
+            draw_context,
+            update_interval,
+        } = update_context;
+        self.time_uniform.write_uniform(
+            draw_context,
+            update_interval.scenario_start.elapsed().as_secs_f32(),
+        );
+    }
     fn on_render<'drawable>(&'drawable self, render_pass: &mut wgpu::RenderPass<'drawable>) {
         self.canvas.render(render_pass);
     }

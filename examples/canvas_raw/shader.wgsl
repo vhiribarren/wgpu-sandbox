@@ -28,6 +28,9 @@ const canvas: array<vec2<f32>, 3> = array(
     vec2<f32>(-1.0, 3.0)
 );
 
+@group(0) @binding(0)
+var<uniform> elapsed_time: f32;
+
 struct VertexInput {
     @builtin(vertex_index) vertex_index: u32,
 }
@@ -54,7 +57,6 @@ fn vertex(input: VertexInput) -> VertexOutput {
 
 @fragment
 fn fragment(in: FragmentInput) -> @location(0) vec4<f32> {
-    var x = in.uv.x;
-    var y =  in.uv.y;
-    return vec4<f32>(x, y, 1.0, 1.0);
+    var col = 0.5 + 0.5*cos(elapsed_time + in.uv.xyx + vec3(0.0,2.0,4.0));
+    return vec4<f32>(col, 1.0);
 }
