@@ -87,8 +87,11 @@ macro_rules! impl_uniform {
         $( impl UnitformType for $type {} )*
     };
 }
-impl_uniform!([[f32; 4]; 4]);
-impl_uniform!(f32, u32);
+impl_uniform!( f32, u32, i32 );
+impl_uniform!( [f32; 2], [f32; 3], [f32; 4] );
+impl_uniform!( [u32; 2], [u32; 3], [u32; 4] );
+impl_uniform!( [i32; 2], [i32; 3], [i32; 4] );
+impl_uniform!( [[f32; 4]; 4], [[u32; 4]; 4], [[i32; 4]; 4] );
 
 pub struct Uniform<T> {
     value: T,
