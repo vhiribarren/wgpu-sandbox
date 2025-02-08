@@ -49,7 +49,7 @@ impl MainScenario {
         let camera = WinitCameraAdapter::new(PerspectiveConfig::default().into());
         let shader_module = draw_context.create_shader_module(DEFAULT_SHADER);
         let mut scene = Scene3D::new(draw_context);
-        let cube = cube::create_cube(
+        let cube = cube::create_cube_with_colors(
             draw_context,
             &shader_module,
             &shader_module,

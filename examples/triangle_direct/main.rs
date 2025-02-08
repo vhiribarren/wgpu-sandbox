@@ -22,11 +22,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-mod simple_two_cubes;
+mod main_scenario;
 
-use simple_two_cubes::MainScenario;
-use wgpu_lite_wrapper::{launcher::launch_app, scenario::ScenarioScheduler};
+use main_scenario::MainScenario;
+use wgpu_lite_wrapper::launcher::launch_app;
 
 fn main() {
-    launch_app(|c| ScenarioScheduler::run(MainScenario::new(c)));
+    launch_app(|c| Box::new(MainScenario::new(c)));
 }

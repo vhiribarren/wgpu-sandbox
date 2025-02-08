@@ -22,9 +22,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-mod simple_cube;
+mod main_scenario;
 
-use simple_cube::MainScenario;
+use main_scenario::MainScenario;
 use wgpu_lite_wrapper::{launcher::launch_app, scenario::ScenarioScheduler};
 
 fn main() {

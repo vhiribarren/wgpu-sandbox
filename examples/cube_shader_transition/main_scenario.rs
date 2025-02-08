@@ -65,7 +65,7 @@ impl MainScenario {
         let mut scene = Scene3D::new(draw_context);
         let scene_uniforms = scene.scene_uniforms();
 
-        let cube_interpolated = cube::create_cube(
+        let cube_interpolated = cube::create_cube_with_colors(
             draw_context,
             &interpolated_shader_module,
             &interpolated_shader_module,
@@ -74,7 +74,7 @@ impl MainScenario {
         )
         .unwrap()
         .as_shareable();
-        let cube_flat = cube::create_cube(
+        let cube_flat = cube::create_cube_with_colors(
             draw_context,
             &flat_shader_module,
             &flat_shader_module,

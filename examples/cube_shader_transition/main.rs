@@ -1,7 +1,7 @@
 /*
 MIT License
 
-Copyright (c) 2025 Vincent Hiribarren
+Copyright (c) 2021, 2022, 2024, 2025 Vincent Hiribarren
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -22,11 +22,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-mod canvas_raw;
-
-use canvas_raw::MainScenario;
-use wgpu_lite_wrapper::launcher::launch_app;
+mod main_scenario;
+use main_scenario::MainScenario;
+use wgpu_lite_wrapper::{launcher::launch_app, scenario::ScenarioScheduler};
 
 fn main() {
-    launch_app(|c| Box::new(MainScenario::new(c)));
+    launch_app(|c| ScenarioScheduler::run(MainScenario::new(c)));
 }

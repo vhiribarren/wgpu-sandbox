@@ -4,6 +4,10 @@ Hobby project to test the Rust programming language and WebGPU through wgpu.
 
 Used technologies: Rust, winit, WebAssembly, WebGPU, WebGL.
 
+## Some convention choices
+
+- coordinate system is left-handed
+- triangle front face is counter clock wise
 
 ## How to launch
 

@@ -57,7 +57,7 @@ impl MainScenario {
         let mut scene = Scene3D::new(draw_context);
         let interpolated_shader_module = draw_context.create_shader_module(INTERPOLATED_SHADER);
         let flat_shader_module = draw_context.create_shader_module(FLAT_SHADER);
-        let cube_left = cube::create_cube(
+        let cube_left = cube::create_cube_with_colors(
             draw_context,
             &interpolated_shader_module,
             &interpolated_shader_module,
@@ -66,7 +66,7 @@ impl MainScenario {
         )
         .unwrap()
         .as_shareable();
-        let cube_right = cube::create_cube(
+        let cube_right = cube::create_cube_with_colors(
             draw_context,
             &flat_shader_module,
             &flat_shader_module,

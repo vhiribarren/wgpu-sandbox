@@ -31,7 +31,7 @@ use wgpu_lite_wrapper::primitives::triangle::{
 use wgpu_lite_wrapper::primitives::M4X4_ID_UNIFORM;
 use wgpu_lite_wrapper::scenario::{UpdateContext, WinitEventLoopHandler};
 
-const DEFAULT_SHADER: &str = include_str!("./simple_triangle_direct.wgsl");
+const DEFAULT_SHADER: &str = include_str!("./triangle_direct.wgsl");
 
 const ROTATION_DEG_PER_S: f32 = 45.0;
 
@@ -90,9 +90,9 @@ impl WinitEventLoopHandler for MainScenario {
         self.transform_uniform
             .write_uniform(update_context.draw_context, transform.into());
     }
-    fn on_render<'drawable, 'render>(
+    fn on_render<'drawable>(
         &'drawable self,
-        render_pass: &'render mut wgpu::RenderPass<'drawable>,
+        render_pass: &mut wgpu::RenderPass<'drawable>,
     ) {
         self.triangle.render(render_pass);
     }

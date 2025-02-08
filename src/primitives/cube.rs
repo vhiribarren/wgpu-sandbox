@@ -22,6 +22,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+use std::sync::LazyLock;
+
 use crate::draw_context::DrawContext;
 use crate::draw_context::DrawModeParams;
 use crate::draw_context::DrawableBuilder;
@@ -34,7 +36,7 @@ use crate::scene::Scene3DUniforms;
 use super::M4X4_ID_UNIFORM;
 
 #[rustfmt::skip]
-const CUBE_GEOMETRY: &[[f32; 3]] = &[
+const CUBE_GEOMETRY_COMPACT: &[[f32; 3]] = &[
     [-0.5, 0.5, -0.5],
     [0.5, 0.5, -0.5],
     [0.5, -0.5, -0.5],
@@ -45,7 +47,7 @@ const CUBE_GEOMETRY: &[[f32; 3]] = &[
     [-0.5, -0.5, 0.5],
 ];
 #[rustfmt::skip]
-const CUBE_INDICES: &[u16] = &[
+const CUBE_INDICES_COMPACT: &[u16] = &[
     // Front
     0, 2, 1,
     0, 3, 2,
@@ -66,7 +68,7 @@ const CUBE_INDICES: &[u16] = &[
     2, 6, 5,
 ];
 #[rustfmt::skip]
-const CUBE_COLOR: &[[f32; 3]] = &[
+const CUBE_COLOR_COMPACT: &[[f32; 3]] = &[
     color::COLOR_WHITE, 
     color::COLOR_BLACK, 
     color::COLOR_RED, 
@@ -76,6 +78,78 @@ const CUBE_COLOR: &[[f32; 3]] = &[
     color::COLOR_CYAN, 
     color::COLOR_MAGENTA, 
 ];
+
+#[rustfmt::skip]
+const CUBE_GEOMETRY_DUPLICATES: &[[f32; 3]] = &[
+    // Front
+    [0., 1., 0.],
+    [0., 0., 0.],
+    [1., 0., 0.],
+    [1., 0., 0.],
+    [1., 1., 0.],
+    [0., 1., 0.],
+    // Back
+    [1., 1., 1.],
+    [1., 0., 1.],
+    [0., 0., 1.],
+    [0., 0., 1.],
+    [0., 1., 1.],
+    [1., 1., 1.],
+    // Top
+    [0., 1., 0.],
+    [1., 1., 0.],
+    [1., 1., 1.],
+    [1., 1., 1.],
+    [0., 1., 1.],
+    [0., 1., 0.],
+    // Bottom
+    [0., 0., 0.],
+    [0., 0., 1.],
+    [1., 0., 1.],
+    [1., 0., 1.],
+    [1., 0., 0.],
+    [0., 0., 0.],
+    // Left
+    [0., 1., 1.],
+    [0., 0., 1.],
+    [0., 0., 0.],
+    [0., 0., 0.],
+    [0., 1., 0.],
+    [0., 1., 1.],
+    // Right
+    [1., 1., 0.],
+    [1., 0., 0.],
+    [1., 0., 1.],
+    [1., 0., 1.],
+    [1., 1., 1.],
+    [1., 1., 0.],
+];
+
+#[rustfmt::skip]
+const CUBE_NORMALS_COMPACT: &[[f32; 3]] = &[
+    // Front
+    [0., 0., -1.],
+    // Back
+    [0., 0., 1.],
+    // Top
+    [0., 1., 0.],
+    // Bottom
+    [0., -1., 0.],
+    // Left
+    [-1., 0., 0.],
+    // Right
+    [1., 0., 0.],
+];
+
+static CUBE_NORMALS_DUPLICATES: LazyLock<Vec<[f32; 3]>> = LazyLock::new(|| {
+    let mut normals = Vec::with_capacity(CUBE_NORMALS_COMPACT.len());
+    for normal in CUBE_NORMALS_COMPACT {
+        for _ in 0..6 {
+            normals.push(*normal);
+        }
+    }
+    normals
+});
 
 pub struct CubeOptions {
     pub with_alpha: bool,
@@ -88,7 +162,7 @@ impl Default for CubeOptions {
     }
 }
 
-pub fn create_cube(
+pub fn create_cube_with_colors(
     context: &DrawContext,
     vtx_module: &wgpu::ShaderModule,
     frg_module: &wgpu::ShaderModule,
@@ -102,20 +176,20 @@ pub fn create_cube(
         vtx_module,
         frg_module,
         DrawModeParams::Indexed {
-            index_data: IndexData::U16(CUBE_INDICES),
+            index_data: IndexData::U16(CUBE_INDICES_COMPACT),
         },
     );
     drawable_builder
         .add_attribute(
             0,
             wgpu::VertexStepMode::Vertex,
-            CUBE_GEOMETRY,
+            CUBE_GEOMETRY_COMPACT,
             wgpu::VertexFormat::Float32x3,
         )?
         .add_attribute(
             1,
             wgpu::VertexStepMode::Vertex,
-            CUBE_COLOR,
+            CUBE_COLOR_COMPACT,
             wgpu::VertexFormat::Float32x3,
         )?
         .add_uniform(0, 0, &uniforms.camera_uniform)?
@@ -132,5 +206,50 @@ pub fn create_cube(
     }
     let drawable = drawable_builder.build();
     //with_index_count? soit vertex count, soit indices .set_index_count(CUBE_VERTEX_COUNT);
+    Ok(Object3D::from_drawable(drawable, transform_uniform))
+}
+
+
+pub fn create_cube_with_normals(
+    context: &DrawContext,
+    vtx_module: &wgpu::ShaderModule,
+    frg_module: &wgpu::ShaderModule,
+    uniforms: &Scene3DUniforms,
+    options: CubeOptions,
+) -> Result<Object3D, anyhow::Error> {
+    let transform_uniform = Uniform::new(context, M4X4_ID_UNIFORM);
+
+    let mut drawable_builder = DrawableBuilder::new(
+        context,
+        vtx_module,
+        frg_module,
+        DrawModeParams::Direct { vertex_count: CUBE_GEOMETRY_DUPLICATES.len() as u32 },
+    );
+    drawable_builder
+        .add_attribute(
+            0,
+            wgpu::VertexStepMode::Vertex,
+            CUBE_GEOMETRY_DUPLICATES,
+            wgpu::VertexFormat::Float32x3,
+        )?
+        .add_attribute(
+            1,
+            wgpu::VertexStepMode::Vertex,
+            &CUBE_NORMALS_DUPLICATES,
+            wgpu::VertexFormat::Float32x3,
+        )?
+        .add_uniform(0, 0, &uniforms.camera_uniform)?
+        .add_uniform(1, 0, &transform_uniform)?;
+    if options.with_alpha {
+        drawable_builder.set_blend_option(wgpu::BlendState {
+            color: wgpu::BlendComponent {
+                src_factor: wgpu::BlendFactor::Constant,
+                dst_factor: wgpu::BlendFactor::OneMinusConstant,
+                operation: wgpu::BlendOperation::Add,
+            },
+            alpha: Default::default(),
+        });
+    }
+    let drawable = drawable_builder.build();
     Ok(Object3D::from_drawable(drawable, transform_uniform))
 }

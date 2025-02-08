@@ -25,7 +25,7 @@ SOFTWARE.
 use wgpu_lite_wrapper::draw_context::{DrawContext, DrawModeParams, Drawable, DrawableBuilder, Uniform};
 use wgpu_lite_wrapper::scenario::{UpdateContext, WinitEventLoopHandler};
 
-const CANVAS_STATIC_SHADER: &str = include_str!("./shader.wgsl");
+const CANVAS_STATIC_SHADER: &str = include_str!("./canvas_raw.wgsl");
 
 pub struct MainScenario {
     canvas: Drawable,
