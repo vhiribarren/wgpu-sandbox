@@ -80,23 +80,29 @@ impl Object3D {
             uniforms,
         }
     }
+    fn update_normal_mat(&mut self, context: &DrawContext) {
+        let Some(normal_tranform) = &mut self.uniforms.normals else {
+            return;
+        };
+        let rotation_mat = extract_rotation(self.transform);
+        let normal_mat = rotation_mat.invert().unwrap().transpose();
+        normal_tranform.write_uniform(context, normal_mat.into());
+
+    }
     pub fn set_transform(&mut self, context: &DrawContext, transform: Matrix4<f32>) {
         self.transform = transform;
         self.uniforms.view
             .write_uniform(context, self.transform.into());
-        if let Some(normal_tranform) = &mut self.uniforms.normals {
-            let rotation_mat = extract_rotation(self.transform);
-            let normal_mat = rotation_mat.invert().unwrap().transpose();
-            normal_tranform.write_uniform(context, normal_mat.into());
-        }
+        self.update_normal_mat(context);
     }
     pub fn get_transform(&self) -> &Matrix4<f32> {
         &self.transform
     }
     pub fn apply_transform(&mut self, context: &DrawContext, transform: Matrix4<f32>) {
-        self.transform = self.transform * transform; // TODO Shouldn't it be the opposite? But in that case that does not work
+        self.transform = transform * self.transform;
         self.uniforms.view
             .write_uniform(context, self.transform.into());
+        self.update_normal_mat(context);
     }
     pub fn set_opacity(&mut self, value: f32) {
         self.opacity = value.clamp(0., 1.);

@@ -85,8 +85,8 @@ impl WinitEventLoopHandler for MainScenario {
             .elapsed()
             .as_secs_f32();
         let new_rotation = ROTATION_DEG_PER_S * total_seconds;
-        let transform: cgmath::Matrix4<f32> =
-            cgmath::Matrix4::from_angle_z(cgmath::Deg(new_rotation));
+        let transform: cgmath::Matrix4<f32> = cgmath::Matrix4::from_scale(0.5)
+            * cgmath::Matrix4::from_angle_z(cgmath::Deg(new_rotation));
         self.transform_uniform
             .write_uniform(update_context.draw_context, transform.into());
     }

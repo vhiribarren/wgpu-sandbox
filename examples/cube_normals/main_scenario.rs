@@ -46,14 +46,21 @@ impl MainScenario {
         let camera = WinitCameraAdapter::new(PerspectiveConfig::default().into());
         let shader_module = draw_context.create_shader_module(DEFAULT_SHADER);
         let mut scene = Scene3D::new(draw_context);
-        let cube = cube::create_cube_with_normals(
-            draw_context,
-            &shader_module,
-            &shader_module,
-            scene.scene_uniforms(),
-            Default::default(),
-        )
-        .unwrap()
+        let cube = {
+            let mut cube_obj = cube::create_cube_with_normals(
+                draw_context,
+                &shader_module,
+                &shader_module,
+                scene.scene_uniforms(),
+                Default::default(),
+            )
+            .unwrap();
+            cube_obj.set_transform(
+                draw_context,
+                cgmath::Matrix4::from_translation(cgmath::Vector3::new(-0.5, -0.5, -0.5)),
+            );
+            cube_obj
+        }
         .as_shareable();
         scene.add(cube.clone());
         Self {
@@ -67,19 +74,14 @@ impl MainScenario {
 impl Scenario for MainScenario {
     gen_camera_scene!(camera, scene);
 
-    fn on_update(&mut self, context: &UpdateContext) {
-        let total_seconds = context
-            .update_interval
-            .scenario_start
-            .elapsed()
-            .as_secs_f32();
-        let new_rotation = ROTATION_DEG_PER_S * total_seconds;
-        let z_translation: cgmath::Matrix4<f32> =
-            cgmath::Matrix4::from_translation(cgmath::Vector3::new(-0.5, -0.5, -0.5));
-        let transform: cgmath::Matrix4<f32> =
-            cgmath::Matrix4::from_angle_x(cgmath::Deg(new_rotation));
+    fn on_update(&mut self, update_context: &UpdateContext) {
+        let update_interval = update_context.update_interval;
+        let draw_context = update_context.draw_context;
+        let delta_rotation = ROTATION_DEG_PER_S * update_interval.update_delta.as_secs_f32();
+        let transform = cgmath::Matrix4::from_angle_z(cgmath::Deg(delta_rotation))
+            * cgmath::Matrix4::from_angle_y(cgmath::Deg(delta_rotation));
         self.cube
             .borrow_mut()
-            .set_transform(context.draw_context, transform * z_translation);
+            .apply_transform(draw_context, transform);
     }
 }

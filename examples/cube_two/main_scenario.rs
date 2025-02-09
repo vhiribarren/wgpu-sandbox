@@ -75,11 +75,11 @@ impl MainScenario {
         )
         .unwrap()
         .as_shareable();
-        cube_left.borrow_mut().apply_transform(
+        cube_left.borrow_mut().set_transform(
             draw_context,
             cgmath::Matrix4::from_translation(cgmath::Vector3::new(-0.5, 0.0, 5.0)),
         );
-        cube_right.borrow_mut().apply_transform(
+        cube_right.borrow_mut().set_transform(
             draw_context,
             cgmath::Matrix4::from_translation(cgmath::Vector3::new(0.5, 0.0, 0.0)),
         );

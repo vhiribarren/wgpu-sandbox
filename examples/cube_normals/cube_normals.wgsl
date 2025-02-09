@@ -8,7 +8,7 @@ struct FragmentInput {
     @builtin(position) position: vec4<f32>,
 };
 
-const LIGHT_DIRECTION = vec3<f32>(-1.5, -1., 1.);
+const LIGHT_DIRECTION = vec3<f32>(0., -1., 1.);
 const LIGHT_COLOR = vec3<f32>(1., 1., 1.);
 const AMBIANT_COLOR =  vec3<f32>(0.2);
 
