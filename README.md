@@ -11,25 +11,34 @@ Used technologies: Rust, winit, WebAssembly, WebGPU, WebGL.
 
 ## How to launch
 
-    $ cargo run
+    cargo run
 
 There are also some examples in the `examples` directory:
 
-    $ cargo run --example simple_triangle
+    cargo run --example cube_shader_transition
+
+## WASM version
 
 For the web version, you must be sure you can compile to the WebAssembly target first:
 
-    $ rustup target add wasm32-unknown-unknown
+    rustup target add wasm32-unknown-unknown
+    cargo install -f wasm-bindgen-cli
 
-You can then launch the command:
+If you have Python3 installed, you can compile to WASM and host a local web server
+by launching the command:
 
-    $ ./run-web.sh
+    ./run-web.sh
 
 ... then launch a browser with the displayed URL.
 
+> [!NOTE]  
+> For now, examples cannot be launched like that. Only a default example is launched.
+
 # References
 
-I heavily read and used the [Learn WGPU tutorial](https://sotrh.github.io/learn-wgpu).
+I heavily read and used:
+- [Learn WGPU tutorial](https://sotrh.github.io/learn-wgpu).
+- [WebGPU Fundamentals](https://webgpufundamentals.org/)
 
 Mains references links are:
 - https://github.com/gfx-rs/wgpu
