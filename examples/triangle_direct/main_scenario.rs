@@ -22,13 +22,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+use cgmath::SquareMatrix;
 use wgpu_lite_wrapper::draw_context::{
     DrawContext, DrawModeParams, Drawable, DrawableBuilder, Uniform,
 };
 use wgpu_lite_wrapper::primitives::triangle::{
     TRIANGLE_COLOR, TRIANGLE_GEOMETRY, TRIANGLE_VERTEX_COUNT,
 };
-use wgpu_lite_wrapper::primitives::M4X4_ID_UNIFORM;
 use wgpu_lite_wrapper::scenario::{UpdateContext, WinitEventLoopHandler};
 
 const DEFAULT_SHADER: &str = include_str!("./triangle_direct.wgsl");
@@ -43,7 +43,7 @@ pub struct MainScenario {
 impl MainScenario {
     pub fn new(draw_context: &DrawContext) -> Self {
         let shader_module = draw_context.create_shader_module(DEFAULT_SHADER);
-        let transform_uniform = Uniform::new(draw_context, M4X4_ID_UNIFORM);
+        let transform_uniform = Uniform::new(draw_context, cgmath::Matrix4::identity().into());
         let mut drawable_builder = DrawableBuilder::new(
             draw_context,
             &shader_module,
@@ -90,10 +90,7 @@ impl WinitEventLoopHandler for MainScenario {
         self.transform_uniform
             .write_uniform(update_context.draw_context, transform.into());
     }
-    fn on_render<'drawable>(
-        &'drawable self,
-        render_pass: &mut wgpu::RenderPass<'drawable>,
-    ) {
+    fn on_render<'drawable>(&'drawable self, render_pass: &mut wgpu::RenderPass<'drawable>) {
         self.triangle.render(render_pass);
     }
 

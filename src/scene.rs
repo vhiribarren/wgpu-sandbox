@@ -24,11 +24,10 @@ SOFTWARE.
 
 use std::{cell::RefCell, rc::Rc};
 
-use cgmath::Matrix4;
+use cgmath::{Matrix4, SquareMatrix};
 
 use crate::{
     draw_context::{DrawContext, Drawable, Uniform},
-    primitives::M4X4_ID_UNIFORM,
     scenario::UpdateContext,
 };
 
@@ -60,7 +59,7 @@ impl Scene3D {
         Scene3D {
             drawables: Vec::new(),
             scene_uniforms: Scene3DUniforms {
-                camera_uniform: Uniform::new(context, M4X4_ID_UNIFORM),
+                camera_uniform: Uniform::new(context, cgmath::Matrix4::identity().into()),
                 _private: (),
             },
         }

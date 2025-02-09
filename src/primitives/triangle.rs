@@ -22,10 +22,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+use cgmath::SquareMatrix;
+
 use crate::draw_context::{DrawContext, DrawableBuilder, Uniform};
 use crate::primitives::Object3D;
 
-use super::{color, M4X4_ID_UNIFORM};
+use super::{color, Object3DUniforms};
 
 #[rustfmt::skip]
 pub const TRIANGLE_GEOMETRY: &[[f32; 3]] = &[
@@ -47,8 +49,7 @@ pub fn create_equilateral_triangle(
     vtx_module: &wgpu::ShaderModule,
     frg_module: &wgpu::ShaderModule,
 ) -> Result<Object3D, anyhow::Error> {
-    let camera_uniform = Uniform::new(context, M4X4_ID_UNIFORM);
-    let transform_uniform = Uniform::new(context, M4X4_ID_UNIFORM);
+    let transform_uniform = Uniform::new(context, cgmath::Matrix4::identity().into());
 
     let mut drawable_builder = DrawableBuilder::new(
         context,
@@ -71,8 +72,13 @@ pub fn create_equilateral_triangle(
             TRIANGLE_COLOR,
             wgpu::VertexFormat::Float32x3,
         )?
-        .add_uniform(0, 0, &camera_uniform)?
-        .add_uniform(1, 0, &transform_uniform)?;
+        .add_uniform(0, 0, &transform_uniform)?;
     let drawable = drawable_builder.build();
-    Ok(Object3D::from_drawable(drawable, transform_uniform))
+    Ok(Object3D::new(
+        drawable,
+        Object3DUniforms {
+            view: transform_uniform,
+            normals: None,
+        },
+    ))
 }

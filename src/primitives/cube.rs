@@ -24,6 +24,8 @@ SOFTWARE.
 
 use std::sync::LazyLock;
 
+use cgmath::SquareMatrix;
+
 use crate::draw_context::DrawContext;
 use crate::draw_context::DrawModeParams;
 use crate::draw_context::DrawableBuilder;
@@ -33,7 +35,7 @@ use crate::primitives::color;
 use crate::primitives::Object3D;
 use crate::scene::Scene3DUniforms;
 
-use super::M4X4_ID_UNIFORM;
+use super::Object3DUniforms;
 
 #[rustfmt::skip]
 const CUBE_GEOMETRY_COMPACT: &[[f32; 3]] = &[
@@ -169,7 +171,7 @@ pub fn create_cube_with_colors(
     uniforms: &Scene3DUniforms,
     options: CubeOptions,
 ) -> Result<Object3D, anyhow::Error> {
-    let transform_uniform = Uniform::new(context, M4X4_ID_UNIFORM);
+    let transform_uniform = Uniform::new(context, cgmath::Matrix4::identity().into());
 
     let mut drawable_builder = DrawableBuilder::new(
         context,
@@ -205,8 +207,7 @@ pub fn create_cube_with_colors(
         });
     }
     let drawable = drawable_builder.build();
-    //with_index_count? soit vertex count, soit indices .set_index_count(CUBE_VERTEX_COUNT);
-    Ok(Object3D::from_drawable(drawable, transform_uniform))
+    Ok(Object3D::new(drawable, Object3DUniforms { view: transform_uniform, normals: None }))
 }
 
 
@@ -217,7 +218,8 @@ pub fn create_cube_with_normals(
     uniforms: &Scene3DUniforms,
     options: CubeOptions,
 ) -> Result<Object3D, anyhow::Error> {
-    let transform_uniform = Uniform::new(context, M4X4_ID_UNIFORM);
+    let transform_uniform = Uniform::new(context, cgmath::Matrix4::identity().into());
+    let normals_uniform = Uniform::new(context, cgmath::Matrix3::identity().into());
 
     let mut drawable_builder = DrawableBuilder::new(
         context,
@@ -239,7 +241,9 @@ pub fn create_cube_with_normals(
             wgpu::VertexFormat::Float32x3,
         )?
         .add_uniform(0, 0, &uniforms.camera_uniform)?
-        .add_uniform(1, 0, &transform_uniform)?;
+        .add_uniform(1, 0, &transform_uniform)?
+        .add_uniform(1, 1, &normals_uniform)?;
+
     if options.with_alpha {
         drawable_builder.set_blend_option(wgpu::BlendState {
             color: wgpu::BlendComponent {
@@ -251,5 +255,5 @@ pub fn create_cube_with_normals(
         });
     }
     let drawable = drawable_builder.build();
-    Ok(Object3D::from_drawable(drawable, transform_uniform))
+    Ok(Object3D::new(drawable, Object3DUniforms { view: transform_uniform, normals: Some(normals_uniform) }))
 }
