@@ -22,6 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+use std::array;
 use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
 
@@ -80,19 +81,36 @@ impl IndexData<'_> {
     }
 }
 
-pub trait UnitformType: NoUninit {}
+pub trait UnitformType {
+    type AlignedType: NoUninit;
+    fn apply_alignment(&self) -> Self::AlignedType;
+}
 
 macro_rules! impl_uniform {
     ( $($type:ty),+ ) => {
-        $( impl UnitformType for $type {} )*
+        $(
+            impl UnitformType for $type {
+                type AlignedType = Self;
+                fn apply_alignment(&self) -> Self::AlignedType {
+                    *self
+                }
+
+            }
+        )*
     };
 }
-impl_uniform!( f32, u32, i32 );
-impl_uniform!( [f32; 2], [f32; 3], [f32; 4] );
-impl_uniform!( [u32; 2], [u32; 3], [u32; 4] );
-impl_uniform!( [i32; 2], [i32; 3], [i32; 4] );
-impl_uniform!( [[f32; 3]; 3], [[u32; 3]; 3], [[i32; 3]; 3] );
-impl_uniform!( [[f32; 4]; 4], [[u32; 4]; 4], [[i32; 4]; 4] );
+impl_uniform!(f32, u32, i32);
+impl_uniform!([f32; 2], [f32; 3], [f32; 4]);
+impl_uniform!([u32; 2], [u32; 3], [u32; 4]);
+impl_uniform!([i32; 2], [i32; 3], [i32; 4]);
+impl_uniform!([[f32; 4]; 4], [[u32; 4]; 4], [[i32; 4]; 4]);
+
+impl UnitformType for [[f32; 3]; 3] {
+    type AlignedType = [[f32; 4]; 3];
+    fn apply_alignment(&self) -> Self::AlignedType {
+        array::from_fn(|i| [self[i][0], self[i][1], self[i][2], 0.])
+    }
+}
 
 pub struct Uniform<T> {
     value: T,
@@ -105,7 +123,7 @@ impl<T: UnitformType> Uniform<T> {
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Uniform Buffer"),
-                contents: bytemuck::cast_slice(&[value]),
+                contents: bytemuck::cast_slice(&[value.apply_alignment()]),
                 usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
             });
         Self { value, buffer }
@@ -121,7 +139,7 @@ impl<T: UnitformType> Uniform<T> {
         context.queue.write_buffer(
             &self.buffer,
             0 as wgpu::BufferAddress,
-            bytemuck::cast_slice(&[self.value]),
+            bytemuck::cast_slice(&[self.value.apply_alignment()]),
         );
     }
 }
