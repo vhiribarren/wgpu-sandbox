@@ -32,7 +32,7 @@ use std::rc::Rc;
 
 use crate::draw_context::Uniform;
 use crate::draw_context::{DrawContext, Drawable};
-use cgmath::{InnerSpace, Matrix3, Matrix4};
+use cgmath::{InnerSpace, Matrix, Matrix3, Matrix4};
 use cgmath::SquareMatrix;
 
 
@@ -85,7 +85,9 @@ impl Object3D {
         self.uniforms.view
             .write_uniform(context, self.transform.into());
         if let Some(normal_tranform) = &mut self.uniforms.normals {
-            normal_tranform.write_uniform(context, extract_rotation(self.transform).into());
+            let rotation_mat = extract_rotation(self.transform);
+            let normal_mat = rotation_mat.invert().unwrap().transpose();
+            normal_tranform.write_uniform(context, normal_mat.into());
         }
     }
     pub fn get_transform(&self) -> &Matrix4<f32> {
