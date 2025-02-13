@@ -22,12 +22,17 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+use std::marker::PhantomData;
 use std::sync::LazyLock;
 
+use bytemuck::NoUninit;
 use cgmath::SquareMatrix;
+use wgpu::util::BufferInitDescriptor;
+use wgpu::util::DeviceExt;
 
 use crate::draw_context::DrawContext;
 use crate::draw_context::DrawModeParams;
+use crate::draw_context::Drawable;
 use crate::draw_context::DrawableBuilder;
 use crate::draw_context::IndexData;
 use crate::draw_context::Uniform;
@@ -207,9 +212,14 @@ pub fn create_cube_with_colors(
         });
     }
     let drawable = drawable_builder.build();
-    Ok(Object3D::new(drawable, Object3DUniforms { view: transform_uniform, normals: None }))
+    Ok(Object3D::new(
+        drawable,
+        Object3DUniforms {
+            view: transform_uniform,
+            normals: None,
+        },
+    ))
 }
-
 
 pub fn create_cube_with_normals(
     context: &DrawContext,
@@ -225,7 +235,9 @@ pub fn create_cube_with_normals(
         context,
         vtx_module,
         frg_module,
-        DrawModeParams::Direct { vertex_count: CUBE_GEOMETRY_DUPLICATES.len() as u32 },
+        DrawModeParams::Direct {
+            vertex_count: CUBE_GEOMETRY_DUPLICATES.len() as u32,
+        },
     );
     drawable_builder
         .add_attribute(
@@ -255,5 +267,103 @@ pub fn create_cube_with_normals(
         });
     }
     let drawable = drawable_builder.build();
-    Ok(Object3D::new(drawable, Object3DUniforms { view: transform_uniform, normals: Some(normals_uniform) }))
+    Ok(Object3D::new(
+        drawable,
+        Object3DUniforms {
+            view: transform_uniform,
+            normals: Some(normals_uniform),
+        },
+    ))
+}
+
+pub struct DrawInstances<T> {
+    count: usize,
+    stride: usize,
+    instance_buffer: wgpu::Buffer,
+    _type: PhantomData<T>,
+}
+
+impl<T: NoUninit> DrawInstances<T> {
+    pub fn new(context: &DrawContext, data_init: &[T]) -> Self {
+        Self {
+            count: data_init.len(),
+            stride: size_of::<T>(), // FIXME pas de prob d'alignement pour [f32; 3] ?
+            instance_buffer: context.device.create_buffer_init(&BufferInitDescriptor {
+                label: None,
+                contents: bytemuck::cast_slice(data_init),
+                usage: wgpu::BufferUsages::MAP_WRITE | wgpu::BufferUsages::VERTEX,
+            }),
+            _type: PhantomData,
+        }
+    }
+    pub fn iter(&self) -> impl Iterator + use<'_, T> {
+        DrawInstancesIterator {
+            instances: &self,
+            index: 0,
+        }
+    }
+    //fn map_async(lambda) {
+    //}
+}
+
+struct DrawInstancesIterator<'a, T> {
+    instances: &'a DrawInstances<T>,
+    index: usize,
+}
+
+impl<'a, T> Iterator for DrawInstancesIterator<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        todo!()
+    }
+}
+
+pub fn create_cube_with_normals_instances(
+    context: &DrawContext,
+    vtx_module: &wgpu::ShaderModule,
+    frg_module: &wgpu::ShaderModule,
+    uniforms: &Scene3DUniforms,
+    count: u32,
+    options: CubeOptions,
+) -> Result<Drawable, anyhow::Error> {
+    let positions = (0..count).map(|i| [(2*i) as f32 - 4.0, 0., 0.]).collect::<Vec<_>>();
+
+
+    let mut drawable_builder = DrawableBuilder::new(
+        context,
+        vtx_module,
+        frg_module,
+        DrawModeParams::Direct {
+            vertex_count: CUBE_GEOMETRY_DUPLICATES.len() as u32,
+        },
+    );
+    drawable_builder
+        .set_instance_count(count)
+        .add_attribute(
+            0,
+            wgpu::VertexStepMode::Vertex,
+            CUBE_GEOMETRY_DUPLICATES,
+            wgpu::VertexFormat::Float32x3,
+        )?
+        .add_attribute(
+            1,
+            wgpu::VertexStepMode::Instance,
+            &positions,
+            wgpu::VertexFormat::Float32x3,
+        )?
+        .add_uniform(0, 0, &uniforms.camera_uniform)?;
+
+    if options.with_alpha {
+        drawable_builder.set_blend_option(wgpu::BlendState {
+            color: wgpu::BlendComponent {
+                src_factor: wgpu::BlendFactor::Constant,
+                dst_factor: wgpu::BlendFactor::OneMinusConstant,
+                operation: wgpu::BlendOperation::Add,
+            },
+            alpha: Default::default(),
+        });
+    }
+    let drawable = drawable_builder.build();
+    Ok(drawable)
 }

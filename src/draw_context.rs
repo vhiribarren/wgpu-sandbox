@@ -428,6 +428,12 @@ impl Drawable {
     }
 }
 
+impl AsRef<Drawable> for Drawable {
+    fn as_ref(&self) -> &Drawable {
+        self
+    }
+}
+
 pub struct MultiSampleConfig {
     multisample_enabled: bool,
     multisample_count: u32,
