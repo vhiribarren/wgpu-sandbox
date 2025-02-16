@@ -30,11 +30,10 @@ pub mod triangle;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::draw_context::Uniform;
 use crate::draw_context::{DrawContext, Drawable};
-use cgmath::{InnerSpace, Matrix, Matrix3, Matrix4};
+use crate::draw_context::{InstancesAttribute, Uniform};
 use cgmath::SquareMatrix;
-
+use cgmath::{InnerSpace, Matrix, Matrix3, Matrix4};
 
 fn extract_rotation(matrix: Matrix4<f32>) -> Matrix3<f32> {
     // Extract the upper-left 3x3 matrix (which may include scaling)
@@ -45,13 +44,20 @@ fn extract_rotation(matrix: Matrix4<f32>) -> Matrix3<f32> {
     );
 
     // Normalize each column vector to remove scaling
-    Matrix3::from_cols(
-        a.x.normalize(),
-        a.y.normalize(),
-        a.z.normalize(),
-    )
+    Matrix3::from_cols(a.x.normalize(), a.y.normalize(), a.z.normalize())
 }
 
+pub trait Shareable: Sized {
+    fn as_shareable(self) -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(self))
+    }
+}
+
+pub trait Transforms {
+    fn set_transform(&mut self, context: &DrawContext, transform: Matrix4<f32>);
+    fn get_transform(&self) -> &Matrix4<f32>;
+    fn apply_transform(&mut self, context: &DrawContext, transform: Matrix4<f32>);
+}
 
 pub struct Object3DUniforms {
     pub view: Uniform<[[f32; 4]; 4]>,
@@ -66,13 +72,7 @@ pub struct Object3D {
 }
 
 impl Object3D {
-    pub fn as_shareable(self) -> Rc<RefCell<Self>> {
-        Rc::new(RefCell::new(self))
-    }
-    pub fn new(
-        drawable: Drawable,
-        uniforms: Object3DUniforms,
-    ) -> Self {
+    pub fn new(drawable: Drawable, uniforms: Object3DUniforms) -> Self {
         Object3D {
             drawable,
             transform: Matrix4::<f32>::identity(),
@@ -87,22 +87,6 @@ impl Object3D {
         let rotation_mat = extract_rotation(self.transform);
         let normal_mat = rotation_mat.invert().unwrap().transpose();
         normal_tranform.write_uniform(context, normal_mat.into());
-
-    }
-    pub fn set_transform(&mut self, context: &DrawContext, transform: Matrix4<f32>) {
-        self.transform = transform;
-        self.uniforms.view
-            .write_uniform(context, self.transform.into());
-        self.update_normal_mat(context);
-    }
-    pub fn get_transform(&self) -> &Matrix4<f32> {
-        &self.transform
-    }
-    pub fn apply_transform(&mut self, context: &DrawContext, transform: Matrix4<f32>) {
-        self.transform = transform * self.transform;
-        self.uniforms.view
-            .write_uniform(context, self.transform.into());
-        self.update_normal_mat(context);
     }
     pub fn set_opacity(&mut self, value: f32) {
         self.opacity = value.clamp(0., 1.);
@@ -113,7 +97,93 @@ impl Object3D {
     }
 }
 
+impl Transforms for Object3D {
+    fn set_transform(&mut self, context: &DrawContext, transform: Matrix4<f32>) {
+        self.transform = transform;
+        self.uniforms
+            .view
+            .write_uniform(context, self.transform.into());
+        self.update_normal_mat(context);
+    }
+    fn get_transform(&self) -> &Matrix4<f32> {
+        &self.transform
+    }
+    fn apply_transform(&mut self, context: &DrawContext, transform: Matrix4<f32>) {
+        self.transform = transform * self.transform;
+        self.uniforms
+            .view
+            .write_uniform(context, self.transform.into());
+        self.update_normal_mat(context);
+    }
+}
+
+impl Shareable for Object3D {}
+
 impl AsRef<Drawable> for Object3D {
+    fn as_ref(&self) -> &Drawable {
+        &self.drawable
+    }
+}
+
+pub struct Object3DInstance<'a> {
+    position: &'a mut [f32; 3],
+}
+
+impl Object3DInstance<'_> {
+    pub fn set_position(&mut self, pos: cgmath::Vector3<f32>) {
+        *self.position = pos.into();
+    }
+}
+
+pub struct Object3DInstanceGroup {
+    drawable: Drawable,
+    opacity: f32,
+    positions: InstancesAttribute<[f32; 3]>,
+}
+
+impl Object3DInstanceGroup {
+    pub fn new(
+        drawable: Drawable,
+        positions: InstancesAttribute<[f32; 3]>,
+    ) -> Self {
+        Self {
+            drawable,
+            opacity: 0.,
+            positions,
+        }
+    }
+    pub fn update_instances<F>(&self, context: &DrawContext, f: F)
+    where
+        F: Fn(usize, &mut Object3DInstance) + 'static + Send,
+    {
+        let queue = &context.queue;
+        let mut data = vec![[0.0; 3]; self.positions.count];
+        for (idx, instance) in data.iter_mut().enumerate() {
+            let mut position: [f32; 3] = [0.; 3];
+            let mut obj = Object3DInstance {
+                position: &mut position,
+            };
+            f(idx, &mut obj);
+            *instance = *obj.position;
+        }
+        queue.write_buffer(
+            &self.positions.instance_buffer,
+            0,
+            bytemuck::cast_slice(&data),
+        );
+    }
+    pub fn set_opacity(&mut self, value: f32) {
+        self.opacity = value.clamp(0., 1.);
+        self.drawable.set_blend_color_opacity(self.opacity as f64);
+    }
+    pub fn get_opacity(&self) -> f32 {
+        self.opacity
+    }
+}
+
+impl Shareable for Object3DInstanceGroup {}
+
+impl AsRef<Drawable> for Object3DInstanceGroup {
     fn as_ref(&self) -> &Drawable {
         &self.drawable
     }

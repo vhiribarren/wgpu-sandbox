@@ -22,24 +22,21 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-use std::marker::PhantomData;
 use std::sync::LazyLock;
 
-use bytemuck::NoUninit;
 use cgmath::SquareMatrix;
-use wgpu::util::BufferInitDescriptor;
-use wgpu::util::DeviceExt;
 
 use crate::draw_context::DrawContext;
 use crate::draw_context::DrawModeParams;
-use crate::draw_context::Drawable;
 use crate::draw_context::DrawableBuilder;
 use crate::draw_context::IndexData;
+use crate::draw_context::InstancesAttribute;
 use crate::draw_context::Uniform;
 use crate::primitives::color;
 use crate::primitives::Object3D;
 use crate::scene::Scene3DUniforms;
 
+use super::Object3DInstanceGroup;
 use super::Object3DUniforms;
 
 #[rustfmt::skip]
@@ -276,49 +273,6 @@ pub fn create_cube_with_normals(
     ))
 }
 
-pub struct DrawInstances<T> {
-    count: usize,
-    stride: usize,
-    instance_buffer: wgpu::Buffer,
-    _type: PhantomData<T>,
-}
-
-impl<T: NoUninit> DrawInstances<T> {
-    pub fn new(context: &DrawContext, data_init: &[T]) -> Self {
-        Self {
-            count: data_init.len(),
-            stride: size_of::<T>(), // FIXME pas de prob d'alignement pour [f32; 3] ?
-            instance_buffer: context.device.create_buffer_init(&BufferInitDescriptor {
-                label: None,
-                contents: bytemuck::cast_slice(data_init),
-                usage: wgpu::BufferUsages::MAP_WRITE | wgpu::BufferUsages::VERTEX,
-            }),
-            _type: PhantomData,
-        }
-    }
-    pub fn iter(&self) -> impl Iterator + use<'_, T> {
-        DrawInstancesIterator {
-            instances: &self,
-            index: 0,
-        }
-    }
-    //fn map_async(lambda) {
-    //}
-}
-
-struct DrawInstancesIterator<'a, T> {
-    instances: &'a DrawInstances<T>,
-    index: usize,
-}
-
-impl<'a, T> Iterator for DrawInstancesIterator<'a, T> {
-    type Item = &'a T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        todo!()
-    }
-}
-
 pub fn create_cube_with_normals_instances(
     context: &DrawContext,
     vtx_module: &wgpu::ShaderModule,
@@ -326,9 +280,12 @@ pub fn create_cube_with_normals_instances(
     uniforms: &Scene3DUniforms,
     count: u32,
     options: CubeOptions,
-) -> Result<Drawable, anyhow::Error> {
-    let positions = (0..count).map(|i| [(2*i) as f32 - 4.0, 0., 0.]).collect::<Vec<_>>();
+) -> Result<Object3DInstanceGroup, anyhow::Error> {
+    let positions = (0..count)
+        .map(|i| [(2 * i) as f32 - 4.0, 0., 0.])
+        .collect::<Vec<_>>();
 
+    let pos_instance_attribute = InstancesAttribute::new(context, &positions);
 
     let mut drawable_builder = DrawableBuilder::new(
         context,
@@ -346,12 +303,7 @@ pub fn create_cube_with_normals_instances(
             CUBE_GEOMETRY_DUPLICATES,
             wgpu::VertexFormat::Float32x3,
         )?
-        .add_attribute(
-            1,
-            wgpu::VertexStepMode::Instance,
-            &positions,
-            wgpu::VertexFormat::Float32x3,
-        )?
+        .add_instances_attribute(1, &pos_instance_attribute, wgpu::VertexFormat::Float32x3)?
         .add_uniform(0, 0, &uniforms.camera_uniform)?;
 
     if options.with_alpha {
@@ -365,5 +317,8 @@ pub fn create_cube_with_normals_instances(
         });
     }
     let drawable = drawable_builder.build();
-    Ok(drawable)
+    Ok(Object3DInstanceGroup::new(
+        drawable,
+        pos_instance_attribute,
+    ))
 }

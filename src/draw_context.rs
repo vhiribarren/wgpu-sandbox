@@ -24,13 +24,14 @@ SOFTWARE.
 
 use std::array;
 use std::collections::{BTreeMap, HashSet};
+use std::marker::PhantomData;
 use std::sync::Arc;
 
 use crate::scenario::WinitEventLoopHandler;
 use anyhow::{anyhow, bail, Ok};
 use bytemuck::NoUninit;
 use log::debug;
-use wgpu::util::DeviceExt;
+use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{PipelineLayoutDescriptor, SurfaceConfiguration, Texture};
 use winit::window::Window;
 
@@ -144,13 +145,58 @@ impl<T: UnitformType> Uniform<T> {
     }
 }
 
+pub struct InstancesAttribute<T> {
+    pub(crate) count: usize,
+    pub(crate) stride: usize,
+    pub(crate) instance_buffer: Arc<wgpu::Buffer>,
+    _type: PhantomData<T>,
+}
+
+impl<T: NoUninit> InstancesAttribute<T> {
+    pub fn new(context: &DrawContext, data_init: &[T]) -> Self {
+        Self {
+            count: data_init.len(),
+            stride: size_of::<T>(), // FIXME pas de prob d'alignement pour [f32; 3] ?
+            instance_buffer: Arc::new(context.device.create_buffer_init(&BufferInitDescriptor {
+                label: None,
+                contents: bytemuck::cast_slice(data_init),
+                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::VERTEX,
+            })),
+            _type: PhantomData,
+        }
+    }
+    // pub fn iter(&self) -> impl Iterator + use<'_, T> {
+    //     InstancesAttributeIterator {
+    //         instances: &self,
+    //         index: 0,
+    //     }
+    // }
+    //fn map_async(lambda) {
+    //}
+}
+
+/*
+struct InstancesAttributeIterator<'a, T> {
+    instances: &'a InstancesAttribute<T>,
+    index: usize,
+}
+
+impl<'a, T> Iterator for InstancesAttributeIterator<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        todo!()
+    }
+}
+*/
+
 pub struct DrawableBuilder<'a> {
     context: &'a DrawContext,
     vtx_shader_module: &'a wgpu::ShaderModule,
     frg_shader_module: &'a wgpu::ShaderModule,
     used_locations: HashSet<u32>,
     attributes: Vec<Vec<wgpu::VertexAttribute>>,
-    buffers: Vec<wgpu::Buffer>,
+    buffers: Vec<Arc<wgpu::Buffer>>,
     draw_mode: DrawMode,
     layouts: Vec<wgpu::VertexBufferLayout<'a>>,
     instance_count: u32,
@@ -265,7 +311,36 @@ impl<'a> DrawableBuilder<'a> {
             });
         self.attributes.push(attributes);
         self.layouts.push(layout);
-        self.buffers.push(buffer);
+        self.buffers.push(Arc::new(buffer));
+        Ok(self)
+    }
+    pub fn add_instances_attribute<T>(
+        &mut self,
+        shader_location: u32,
+        instances_attributes: &InstancesAttribute<T>,
+        format: wgpu::VertexFormat,
+    ) -> Result<&mut Self, anyhow::Error>
+    where
+        T: bytemuck::NoUninit,
+    {
+        if self.used_locations.contains(&shader_location) {
+            bail!("Location {} already used!", shader_location);
+        }
+        self.used_locations.insert(shader_location);
+        let attributes = vec![wgpu::VertexAttribute {
+            format,
+            offset: 0,
+            shader_location,
+        }];
+        let layout = wgpu::VertexBufferLayout {
+            array_stride: format.size() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Instance,
+            attributes: &[], // Filled later during build
+        };
+        self.attributes.push(attributes);
+        self.layouts.push(layout);
+        self.buffers
+            .push(Arc::clone(&instances_attributes.instance_buffer));
         Ok(self)
     }
     pub fn build(self) -> Drawable {
@@ -385,8 +460,8 @@ impl<'a> DrawableBuilder<'a> {
 
 pub struct Drawable {
     draw_mode: DrawMode,
-    buffers: Vec<wgpu::Buffer>,
-    instance_count: u32,
+    buffers: Vec<Arc<wgpu::Buffer>>,
+    pub(crate) instance_count: u32,
     pipeline: wgpu::RenderPipeline,
     blend_color_opacity: wgpu::Color,
     bind_groups: BTreeMap<u32, wgpu::BindGroup>,

@@ -25,10 +25,11 @@ SOFTWARE.
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use cgmath::Vector3;
 use wgpu_lite_wrapper::cameras::{PerspectiveConfig, WinitCameraAdapter};
-use wgpu_lite_wrapper::draw_context::{DrawContext, Drawable};
+use wgpu_lite_wrapper::draw_context::{DrawContext, Drawable, InstancesAttribute};
 use wgpu_lite_wrapper::gen_camera_scene;
-use wgpu_lite_wrapper::primitives::{cube, Object3D};
+use wgpu_lite_wrapper::primitives::{cube, Object3D, Object3DInstanceGroup, Shareable};
 use wgpu_lite_wrapper::scenario::{Scenario, UpdateContext};
 use wgpu_lite_wrapper::scene::{Scene, Scene3D};
 
@@ -37,7 +38,7 @@ const DEFAULT_SHADER: &str = include_str!("cube_instances.wgsl");
 const ROTATION_DEG_PER_S: f32 = 45.0;
 
 pub struct MainScenario {
-    pub cube: Rc<std::cell::RefCell<Drawable>>,
+    pub cube: Rc<std::cell::RefCell<Object3DInstanceGroup>>,
     pub scene: Scene3D,
     pub camera: WinitCameraAdapter,
 }
@@ -57,7 +58,7 @@ impl MainScenario {
                 Default::default(),
             )
             .unwrap();
-            Rc::new(RefCell::new(cube_obj))
+            cube_obj.as_shareable()
         };
         scene.add(cube.clone());
         Self {
@@ -72,8 +73,16 @@ impl Scenario for MainScenario {
     gen_camera_scene!(camera, scene);
 
     fn on_update(&mut self, update_context: &UpdateContext) {
-        // let update_interval = update_context.update_interval;
-        // let draw_context = update_context.draw_context;
+        let &UpdateContext {
+            draw_context,
+            update_interval,
+        } = update_context;
+        let delta = update_interval.scenario_start.elapsed().as_secs_f32().cos();
+        self.cube
+            .borrow_mut()
+            .update_instances(draw_context, move |index, mut instance| {
+                instance.set_position(Vector3::new(delta + index as f32, index as f32, 0.));
+            });
         // let delta_rotation = ROTATION_DEG_PER_S * update_interval.update_delta.as_secs_f32();
         // let transform = cgmath::Matrix4::from_angle_z(cgmath::Deg(delta_rotation))
         //     * cgmath::Matrix4::from_angle_y(cgmath::Deg(delta_rotation));
